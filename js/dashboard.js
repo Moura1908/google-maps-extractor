@@ -1,6 +1,75 @@
-function capitalizeFirstLetter(a){return a.charAt(0).toUpperCase()+a.slice(1)}var table=newTabulator("#example-table",{layout:"fitData",placeholder:"Loading",selectable:1});
-document.getElementById("download-csv").addEventListener("click",function(){rolecheck().then(function(a){const c=a.quota||0;var d=a.used||0;if(d<c){table.download("csv","results.csv");const b=table.getRows().length;console.log(`download ${b} emails.`);updateuse(b);d+=b;document.getElementById("accountinfo").innerHTML=`Current Plan: ${a.plan}, Quota: ${c}, Used: ${d}`}else alert("Download Quota Used UP, Please Upgrade your plan."),upgradeToPro()}).catch(a=>{console.log(a)})});
-document.getElementById("download-xlsx").addEventListener("click",function(){rolecheck().then(function(a){const c=a.quota||0;var d=a.used||0;if(d<c){table.download("xlsx","results.xlsx",{sheetName:"My Data"});const b=table.getRows().length;console.log(`download ${b} emails.`);updateuse(b);d+=b;document.getElementById("accountinfo").innerHTML=`Current Plan: ${a.plan}, Quota: ${c}, Used: ${d}`}else alert("Download Quota Used UP, Please Upgrade your plan."),upgradeToPro()}).catch(a=>{console.log(a)})});
-function flattenObject(a,c=""){const d={};for(const [b,e]of Object.entries(a))a=c?`${c}_${b}`:b,"object"===typeof e&&null!==e?Object.assign(d,flattenObject(e,a)):d[a]=e;return d}
-function generateColumns(a){const c=new Set("name phone email website address instagram facebook twitter linkedin yelp youtube placeID cID category reviewCount averageRating latitude longitude".split(" "));var d=[];c.forEach(b=>{d.push({title:capitalizeFirstLetter(b),field:b,width:300,resizable:!0})});Array.from(a).sort().forEach(b=>{c.has(b)||d.push({title:capitalizeFirstLetter(b),field:b,width:300,resizable:!0})});table.setColumns(d)}
-function showData(){chrome.storage.local.get(null,function(a){a=a.leads||[];for(var c=new Set,d=[],b=0;b<a.length;++b){const e=flattenObject(a[b]);d.push(e);Object.keys(e).forEach(f=>c.add(f))}generateColumns(c);table.setData(d)})}function normalizeProfileId(a){return a.replace("@","").trim().toLowerCase()}$(document).ready(function(){showData();chrome.storage.sync.get(null,function(a){a.uid&&rolecheck().then(function(c){document.getElementById("accountinfo").innerHTML=`Current Plan: ${c.plan}, Quota: ${c.quota}, Used: ${c.used}`})})});
+'use strict';
+
+/** Colunas conhecidas, na ordem em que fazem sentido para prospecção. */
+const PREFERRED_COLUMNS =
+  'name phone email website address instagram facebook twitter linkedin yelp youtube placeID cID category reviewCount averageRating latitude longitude'.split(
+    ' '
+  );
+
+const table = new Tabulator('#example-table', {
+  layout: 'fitData',
+  placeholder: 'Carregando',
+  selectable: 1,
+});
+
+function capitalizeFirstLetter(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Achata objetos aninhados para que virem colunas do CSV. */
+function flattenObject(source, prefix = '') {
+  const flat = {};
+  for (const [key, value] of Object.entries(source)) {
+    const path = prefix ? `${prefix}_${key}` : key;
+    if (typeof value === 'object' && value !== null) {
+      Object.assign(flat, flattenObject(value, path));
+    } else {
+      flat[path] = value;
+    }
+  }
+  return flat;
+}
+
+/** Colunas preferidas primeiro; o resto (horários etc.) em ordem alfabética. */
+function generateColumns(foundFields) {
+  const columns = PREFERRED_COLUMNS.map((field) => ({
+    title: capitalizeFirstLetter(field),
+    field,
+    width: 300,
+    resizable: true,
+  }));
+
+  const known = new Set(PREFERRED_COLUMNS);
+  Array.from(foundFields)
+    .sort()
+    .forEach((field) => {
+      if (known.has(field)) return;
+      columns.push({ title: capitalizeFirstLetter(field), field, width: 300, resizable: true });
+    });
+
+  table.setColumns(columns);
+}
+
+function showData() {
+  chrome.storage.local.get(null, (stored) => {
+    const leads = stored.leads || [];
+    const fields = new Set();
+    const rows = leads.map((lead) => {
+      const flat = flattenObject(lead);
+      Object.keys(flat).forEach((field) => fields.add(field));
+      return flat;
+    });
+    generateColumns(fields);
+    table.setData(rows);
+  });
+}
+
+document.getElementById('download-csv').addEventListener('click', () => {
+  table.download('csv', 'results.csv');
+});
+
+document.getElementById('download-xlsx').addEventListener('click', () => {
+  table.download('xlsx', 'results.xlsx', { sheetName: 'My Data' });
+});
+
+$(document).ready(showData);

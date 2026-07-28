@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Google Maps Scraper",
   "version": "1.9.1",
-  "description": "One click to extract B2B Local leads from Google Maps result pages and export leads  to CSV files.",
+  "description": "Extrai leads B2B locais das páginas de resultado do Google Maps e exporta para CSV/XLSX. 100% local.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -444,8 +444,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "help.html",
-        "auth/pay/*",
         "dashboard.html",
         "css/*",
         "src/page/interceptor.js"
@@ -457,11 +455,10 @@
   ],
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "unlimitedStorage"
   ],
   "host_permissions": [
-    "*://*.productivityimprover.com/",
-    "http://localhost/*",
     "*://*/*"
   ],
   "content_security_policy": {

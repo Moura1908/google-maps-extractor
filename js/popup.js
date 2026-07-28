@@ -1,4 +1,19 @@
-function normalizeProfileId(a){return a.trim().toLowerCase()}document.getElementById("addprofilebtn").addEventListener("click",function(){var a=normalizeProfileId(document.getElementById("profileid").value);window.open("https://www.google.com/maps/search/"+encodeURIComponent(a))});
-$(document).ready(function(){document.getElementById("managesubscription").style.display="none";chrome.storage.sync.get(null,function(a){var c=a.displayName;a.uid?(document.getElementById("loginbtn").innerHTML="Logout "+c,document.getElementById("loginbtn").addEventListener("click",function(){chrome.storage.sync.clear();window.location.assign("popup.html")}),rolecheck().then(function(b){"Free"!=b.plan?(document.getElementById("upgradebtn").style.display="None",document.getElementById("managesubscription").style.display=
-"block"):document.getElementById("upgradebtn").style.display="block";document.getElementById("accountinfo").innerHTML=`Current Plan: ${b.plan}, Quota: ${b.quota}, Used: ${b.used}`})):(document.getElementById("loginbtn").innerHTML="Login",document.getElementById("upgradebtn").style.display="None",document.getElementById("loginbtn").addEventListener("click",function(){login()}))});document.getElementById("customerportal").addEventListener("click",customerportal)});
-document.getElementById("upgradebtn").addEventListener("click",function(){upgradeToPro()});
+'use strict';
+
+/** Abre a busca do Maps já com o termo digitado. */
+document.getElementById('addprofilebtn').addEventListener('click', () => {
+  const query = document.getElementById('profileid').value.trim();
+  if (!query) return;
+  window.open(`https://www.google.com/maps/search/${encodeURIComponent(query)}`);
+});
+
+document.getElementById('opendashboard').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+});
+
+/** Mostra quantos leads já estão guardados localmente. */
+chrome.storage.local.get('leads', (stored) => {
+  const total = (stored.leads || []).length;
+  document.getElementById('leadcount').textContent =
+    total > 0 ? `${total} leads no último lote extraído` : 'Nenhum lead extraído ainda';
+});
