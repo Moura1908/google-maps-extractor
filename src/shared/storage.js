@@ -92,6 +92,13 @@ const LeadStore = (() => {
       return (await this.allKeys()).size;
     },
 
+    /** Remove leads específicos (usado pela limpeza de duplicatas). */
+    async removeMany(keys) {
+      if (!keys || keys.length === 0) return;
+      for (const key of keys) pendingWrites.delete(key);
+      await chrome.storage.local.remove(keys.map((key) => LEAD_PREFIX + key));
+    },
+
     /** Apaga todos os leads. Preserva as preferências. */
     async clear() {
       if (flushTimer) {
@@ -118,3 +125,7 @@ const LeadStore = (() => {
     },
   };
 })();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { LeadStore };
+}

@@ -131,30 +131,19 @@
   // --- entrada de dados -----------------------------------------------------
 
   function handleSearchPayload(rawBody) {
-    let parsed;
-    try {
-      parsed = parseSearchResponse(rawBody);
-    } catch (error) {
-      console.warn('[gms] payload de busca ilegível:', error);
-      return;
-    }
+    const fresh = ingestSearchPayload(rawBody, {
+      knownKeys,
+      query: currentSearchQuery(),
+      country: countryFromMapsHost(window.location.host) || settings.defaultCountry,
+    });
 
-    const query = currentSearchQuery();
-    const scrapedAt = new Date().toISOString();
-    let added = 0;
-
-    for (const lead of parsed) {
-      lead.key = buildLeadKey(lead);
-      if (knownKeys.has(lead.key)) continue;
-      knownKeys.add(lead.key);
-
-      lead.search_query = query;
-      lead.scraped_at = scrapedAt;
-      applyPhoneFields(lead, settings.defaultCountry);
-
+    for (const lead of fresh) {
       // Grava já, sem esperar o enriquecimento: F5 não pode custar o lead.
       LeadStore.save(lead);
-      added += 1;
+
+      // Só entra na fila o que realmente dá trabalho — senão o progresso
+      // mostraria centenas de tarefas que não fazem nada.
+      if (!lead.website || !settings.collectEmail) continue;
 
       queue.push(async () => {
         try {
@@ -165,10 +154,10 @@
       });
     }
 
-    if (added === 0) return;
-    leadCount += added;
+    if (fresh.length === 0) return;
+    leadCount += fresh.length;
     OverlayUI.setCount(leadCount);
-    console.log(`[gms] ${added} novos leads (total ${leadCount})`);
+    console.log(`[gms] ${fresh.length} novos leads (total ${leadCount})`);
   }
 
   window.addEventListener('message', (event) => {

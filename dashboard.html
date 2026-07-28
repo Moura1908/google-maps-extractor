@@ -6,25 +6,50 @@
     <title>Leads extraídos</title>
     <link href="lib/tabulator/css/semantic-ui/tabulator_semantic-ui.min.css" rel="stylesheet" />
     <link href="css/dashboard.css" rel="stylesheet" />
-    <script type="text/javascript" src="lib/tabulator/js/tabulator.min.js"></script>
-    <script type="text/javascript" src="lib/xlsx.full.min.js"></script>
-    <script src="lib/jquery-3.1.1.min.js"></script>
+    <script src="lib/tabulator/js/tabulator.min.js"></script>
+    <script src="lib/xlsx.full.min.js"></script>
 </head>
 
 <body>
     <div id="maincontent">
-        <div id="content">
-            <div style="display: flex; flex-direction: row; gap: 20px; align-items: center;">
-                <div style="display: flex; gap: 20px;">
-                    <button id="download-csv">Baixar CSV</button>
-                    <button id="download-xlsx">Baixar XLSX</button>
-                </div>
+        <header class="toolbar">
+            <h1>Leads extraídos</h1>
+            <p class="counter" id="counter">Carregando…</p>
+
+            <div class="row">
+                <span class="row-label">Exportar</span>
+                <button id="download-csv" class="primary">Baixar CSV</button>
+                <button id="download-xlsx">Baixar XLSX</button>
+                <button id="dedupe">Remover duplicados</button>
+                <button id="clear-base" class="danger">Limpar base</button>
             </div>
-            <div><span id="datastatus" style="color: red;"></span></div>
-            <div id="example-table"></div>
-        </div>
+
+            <div class="row">
+                <span class="row-label">Filtros</span>
+                <label class="check"><input type="checkbox" id="filter-email" /> Só com e-mail</label>
+                <label class="check"><input type="checkbox" id="filter-mobile" /> Só celular</label>
+                <label class="check"><input type="checkbox" id="filter-phone" /> Só com telefone</label>
+                <label class="check"><input type="checkbox" id="filter-no-website" /> Sem website</label>
+                <span class="numeric">Nota ≥ <input type="number" id="filter-rating" min="0" max="5" step="0.1" /></span>
+                <span class="numeric">Avaliações ≥ <input type="number" id="filter-reviews" min="0" step="1" /></span>
+                <button id="filter-reset">Limpar filtros</button>
+            </div>
+
+            <div class="row">
+                <details class="columns">
+                    <summary>Escolher colunas visíveis</summary>
+                    <div class="column-grid" id="column-toggles"></div>
+                </details>
+            </div>
+        </header>
+
+        <div id="datastatus"></div>
+        <div id="example-table"></div>
     </div>
 </body>
+<script src="src/shared/leadkey.js"></script>
+<script src="src/shared/phone.js"></script>
+<script src="src/shared/storage.js"></script>
 <script src="js/dashboard.js"></script>
 
 </html>

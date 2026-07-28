@@ -11,9 +11,9 @@ document.getElementById('opendashboard').addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
 });
 
-/** Mostra quantos leads já estão guardados localmente. */
-chrome.storage.local.get('leads', (stored) => {
-  const total = (stored.leads || []).length;
+/** Mostra quantos leads já estão guardados na base local. */
+(async () => {
+  const total = await LeadStore.count();
   document.getElementById('leadcount').textContent =
-    total > 0 ? `${total} leads no último lote extraído` : 'Nenhum lead extraído ainda';
-});
+    total > 0 ? `${total} leads na base local` : 'Nenhum lead extraído ainda';
+})();

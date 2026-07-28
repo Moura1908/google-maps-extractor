@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Google Maps Scraper",
-  "version": "1.9.1",
+  "version": "2.0.0",
   "description": "Extrai leads B2B locais das páginas de resultado do Google Maps e exporta para CSV/XLSX. 100% local.",
   "icons": {
     "16": "icons/icon16.png",
@@ -426,6 +426,7 @@
         "src/shared/phone.js",
         "src/shared/storage.js",
         "src/content/parser.js",
+        "src/content/ingest.js",
         "src/content/queue.js",
         "src/content/overlay.js",
         "src/content/scraper.js"

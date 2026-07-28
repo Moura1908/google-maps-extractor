@@ -76,3 +76,7 @@ async function withRetry(task, { attempts = 2, delayMs = 1500 } = {}) {
   }
   throw lastError;
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { createTaskQueue, withRetry };
+}
