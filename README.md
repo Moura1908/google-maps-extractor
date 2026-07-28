@@ -81,6 +81,12 @@ npm test    # node --test test/*.test.js
 
 50 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
 
+## Para onde o projeto vai
+
+`docs/PLANO-DE-EVOLUCAO.md` tem o diagnóstico completo, o roadmap em blocos (com critério de
+aceite e esforço por item), as decisões já tomadas e o que foi deliberadamente descartado.
+Comece pelo **Bloco 0** — são três correções de segurança que somam ~1h15.
+
 ## Limitações conhecidas
 
 - O e-mail é buscado com `fetch` estático: sites que só renderizam por JavaScript não entregam nada.
