@@ -57,7 +57,10 @@
 
     const feed = document.querySelector('[role="feed"]');
     if (!feed) {
+      // Acontece quando a aba está num lugar específico em vez de uma busca.
+      // Sem aviso, o botão só piscaria e voltaria sozinho.
       console.error('[gms] lista de resultados não encontrada');
+      OverlayUI.setMessage('Abra uma busca no Maps para extrair.');
       return;
     }
 

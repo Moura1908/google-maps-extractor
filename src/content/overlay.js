@@ -143,6 +143,11 @@ const OverlayUI = (() => {
       if (!progressLabel) return;
       progressLabel.innerText = total > completed ? `Enriquecendo ${completed}/${total}` : '';
     },
+    /** Recado curto para o usuário (erro ou fim de coleta). */
+    setMessage(text) {
+      if (!progressLabel) return;
+      progressLabel.innerText = text;
+    },
     setExtracting(isExtracting) {
       if (!startButton) return;
       startButton.innerText = isExtracting ? 'Parar extração' : 'Iniciar extração';

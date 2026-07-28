@@ -79,7 +79,7 @@ Para zerar: **Limpar base**, no painel ou no dashboard (exige dois cliques).
 npm test    # node --test test/*.test.js
 ```
 
-40 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+50 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
 
 ## Limitações conhecidas
 
