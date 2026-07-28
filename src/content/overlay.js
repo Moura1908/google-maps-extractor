@@ -3,19 +3,25 @@
 /**
  * Painel de controle injetado na barra lateral do Google Maps.
  *
- * O painel é criado uma única vez e re-anexado sempre que o Maps recria a
- * árvore da sidebar (a navegação é SPA e destrói o container sem avisar).
+ * O Maps é uma SPA que recria a sidebar sem avisar. A versão original sondava
+ * o container a cada 2s com setInterval e dependia exclusivamente da classe
+ * ofuscada `.w6VYqd` — quando o Google renomeia a classe, o painel some e não
+ * há nem erro no console. Aqui há MutationObserver e uma cadeia de fallback
+ * que termina no `document.body`: o painel pode ficar deslocado, mas aparece.
  */
 
 const OverlayUI = (() => {
-  /** Container da sidebar do Maps. Classe ofuscada — muda sem aviso. */
-  const SIDEBAR_SELECTOR = '.w6VYqd';
+  /** Candidatos a container, do mais específico ao último recurso. */
+  const MOUNT_SELECTORS = ['.w6VYqd', '[role="feed"]'];
 
   let panel = null;
-  let leadsLabel = null;
+  let statusLabel = null;
+  let progressLabel = null;
   let startButton = null;
   let exportButton = null;
   let clearButton = null;
+  let clearArmed = false;
+  let handlers = {};
 
   function createButton(id, label, backgroundColor) {
     const button = document.createElement('button');
@@ -26,50 +32,120 @@ const OverlayUI = (() => {
     return button;
   }
 
-  function build({ onToggleExtract, onExport, onClear }) {
+  function createToggle(id, label, checked, onChange) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'extension_gms_toggle';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.id = id;
+    input.checked = checked;
+    input.addEventListener('change', () => onChange(input.checked));
+
+    const text = document.createElement('span');
+    text.innerText = label;
+
+    wrapper.append(input, text);
+    return wrapper;
+  }
+
+  function build(settings) {
     panel = document.createElement('div');
     panel.className = 'extension_gms_page';
 
-    leadsLabel = document.createElement('h1');
-    leadsLabel.id = 'extension_gms_leads_info';
-    leadsLabel.innerHTML = 'Leads: 0';
+    statusLabel = document.createElement('h1');
+    statusLabel.id = 'extension_gms_leads_info';
+    statusLabel.innerText = 'Leads: 0';
 
-    startButton = createButton('extension_gms_start_btn', 'Start Auto Extract');
-    startButton.addEventListener('click', onToggleExtract);
+    progressLabel = document.createElement('p');
+    progressLabel.className = 'extension_gms_progress';
+    progressLabel.innerText = '';
 
-    exportButton = createButton('extension_gms_download_btn', 'Export Leads (0)', '#54aced');
-    exportButton.addEventListener('click', onExport);
+    startButton = createButton('extension_gms_start_btn', 'Iniciar extração');
+    startButton.addEventListener('click', () => handlers.onToggleExtract());
 
-    clearButton = createButton('extension_gms_clear_btn', 'Clear', '#4167b2');
-    clearButton.addEventListener('click', onClear);
+    exportButton = createButton('extension_gms_download_btn', 'Ver e exportar', '#54aced');
+    exportButton.addEventListener('click', () => handlers.onExport());
 
-    panel.append(leadsLabel, startButton, exportButton, clearButton);
+    clearButton = createButton('extension_gms_clear_btn', 'Limpar base', '#4167b2');
+    clearButton.addEventListener('click', () => {
+      // Apagar a base é destrutivo: exige um segundo clique consciente.
+      if (!clearArmed) {
+        clearArmed = true;
+        clearButton.innerText = 'Confirmar?';
+        clearButton.style.backgroundColor = '#ea4335';
+        setTimeout(() => {
+          if (!clearArmed) return;
+          clearArmed = false;
+          clearButton.innerText = 'Limpar base';
+          clearButton.style.backgroundColor = '#4167b2';
+        }, 4000);
+        return;
+      }
+      clearArmed = false;
+      clearButton.innerText = 'Limpar base';
+      clearButton.style.backgroundColor = '#4167b2';
+      handlers.onClear();
+    });
+
+    const options = document.createElement('div');
+    options.className = 'extension_gms_options';
+    options.append(
+      createToggle('extension_gms_email_toggle', 'Buscar e-mail no site', settings.collectEmail, (value) =>
+        handlers.onSettingChange({ collectEmail: value })
+      ),
+      createToggle('extension_gms_deep_toggle', 'Vasculhar páginas de contato', settings.deepSearch, (value) =>
+        handlers.onSettingChange({ deepSearch: value })
+      )
+    );
+
+    panel.append(statusLabel, progressLabel, startButton, exportButton, clearButton, options);
     return panel;
   }
 
-  /** Mantém o painel preso à sidebar mesmo depois de o Maps recriá-la. */
+  function findMountPoint() {
+    for (const selector of MOUNT_SELECTORS) {
+      const element = document.querySelector(selector);
+      if (element) return selector === '.w6VYqd' ? element : element.parentElement;
+    }
+    return null;
+  }
+
+  /** Reanexa o painel sempre que o Maps recria a árvore da sidebar. */
   function keepAttached() {
-    setInterval(() => {
-      const sidebar = document.getElementsByClassName(SIDEBAR_SELECTOR.slice(1))[0];
-      if (sidebar && !sidebar.contains(panel)) {
-        sidebar.appendChild(panel);
-        console.log('[gms] painel inserido na sidebar');
+    const attach = () => {
+      if (panel.isConnected) return;
+      const mount = findMountPoint();
+      if (mount) {
+        panel.classList.remove('extension_gms_floating');
+        mount.appendChild(panel);
+      } else {
+        // Nenhum container conhecido: flutua sobre a página em vez de sumir.
+        panel.classList.add('extension_gms_floating');
+        document.body.appendChild(panel);
       }
-    }, 2000);
+    };
+
+    attach();
+    new MutationObserver(attach).observe(document.body, { childList: true, subtree: true });
   }
 
   return {
-    init(handlers) {
-      build(handlers);
+    init(settings, eventHandlers) {
+      handlers = eventHandlers;
+      build(settings);
       keepAttached();
     },
     setCount(total) {
-      if (leadsLabel) leadsLabel.innerHTML = `Leads: ${total}`;
-      if (exportButton) exportButton.innerText = `Export Leads (${total})`;
+      if (statusLabel) statusLabel.innerText = `Leads: ${total}`;
+    },
+    setProgress({ completed, total }) {
+      if (!progressLabel) return;
+      progressLabel.innerText = total > completed ? `Enriquecendo ${completed}/${total}` : '';
     },
     setExtracting(isExtracting) {
       if (!startButton) return;
-      startButton.innerText = isExtracting ? 'Stop Auto Extract' : 'Start Auto Extract';
+      startButton.innerText = isExtracting ? 'Parar extração' : 'Iniciar extração';
       startButton.style.backgroundColor = isExtracting ? '#ea4335' : '';
     },
   };

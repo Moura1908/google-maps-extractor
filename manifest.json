@@ -422,7 +422,11 @@
         "https://www.google.co.zw/maps/*"
       ],
       "js": [
+        "src/shared/leadkey.js",
+        "src/shared/phone.js",
+        "src/shared/storage.js",
         "src/content/parser.js",
+        "src/content/queue.js",
         "src/content/overlay.js",
         "src/content/scraper.js"
       ],

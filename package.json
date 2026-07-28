@@ -1,0 +1,9 @@
+{
+  "name": "google-maps-extractor",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Extensão Chrome MV3 para extrair leads B2B do Google Maps. Sem build step: a pasta é carregada direto em chrome://extensions.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

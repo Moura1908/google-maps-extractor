@@ -100,11 +100,25 @@ function parseFeedEntry(feedItem) {
   };
 }
 
+/**
+ * Modo debug: guarda o último feed cru para inspeção no console da aba.
+ *
+ * É assim que se remapeia um índice quebrado — ou se descobre um campo novo
+ * (Plus Code, status do negócio, faixa de preço) sem chutar posição:
+ *
+ *   copy(__gmsDebug.lastFeed[0])   // no console da aba do Maps
+ */
+const __gmsDebug = { lastFeed: null, lastEntry: null };
+if (typeof window !== 'undefined') window.__gmsDebug = __gmsDebug;
+
 /** Recebe o corpo bruto de /search e devolve a lista de leads encontrados. */
 function parseSearchResponse(rawBody) {
   const results = unwrapSearchBody(rawBody);
   const feed = results[64];
   if (!Array.isArray(feed)) return [];
+
+  __gmsDebug.lastFeed = feed;
+  if (feed.length > 0) __gmsDebug.lastEntry = feed[0][feed[0].length - 1];
 
   const leads = [];
   for (const feedItem of feed) {

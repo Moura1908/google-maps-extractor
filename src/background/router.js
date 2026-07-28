@@ -9,11 +9,10 @@
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   switch (message.action) {
-    // Salva o lote e abre o dashboard numa aba nova.
+    // Abre o dashboard. Os leads já estão em storage.local, gravados durante
+    // a coleta — não trafegam mais pela mensagem.
     case 'openPage':
-      chrome.storage.local.set({ leads: message.data }, () => {
-        chrome.tabs.create({ url: 'dashboard.html' });
-      });
+      chrome.tabs.create({ url: 'dashboard.html' });
       return false;
 
     // Busca uma URL qualquer sem esbarrar em CORS.

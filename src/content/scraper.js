@@ -4,11 +4,12 @@
  * Orquestração da coleta na aba do Google Maps.
  *
  * Fluxo: o interceptor injetado na página reenvia o corpo de /search por
- * postMessage -> aqui o payload vira leads -> cada lead com site é enriquecido
- * pelo service worker -> o painel mostra o total.
+ * postMessage -> aqui o payload vira leads -> o lead é gravado na base local
+ * IMEDIATAMENTE (antes do enriquecimento) -> uma fila com limite de paralelismo
+ * busca e-mail/redes no site e atualiza o registro.
  *
- * O auto-extract não lê o DOM para extrair dados: ele apenas rola a lista para
- * o Maps disparar as próximas requisições de /search sozinho.
+ * Gravar antes de enriquecer é o que faz um F5 no meio da coleta não apagar
+ * nada: o que já entrou está no disco, não na memória da aba.
  */
 
 (() => {
@@ -17,18 +18,29 @@
   /** Nº de rolagens sem crescimento da lista antes de desistir. */
   const MAX_STALLED_SCROLLS = 20;
 
-  const leads = [];
-  const seenPlaceIds = new Set();
+  let settings = { ...LeadStore.DEFAULT_SETTINGS };
+  let knownKeys = new Set();
+  let leadCount = 0;
   let isExtracting = false;
-  let collectEmail = true;
+  let queue = null;
 
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  /** Pausa aleatória entre rolagens: evita cadência robótica perfeita. */
-  const randomScrollDelay = () => 1000 * (Math.floor(Math.random() * 3) + 1);
 
-  function refreshCount() {
-    OverlayUI.setCount(leads.length);
+  /** Pausa aleatória entre rolagens: evita cadência robótica perfeita. */
+  function randomScrollDelay() {
+    const min = settings.minScrollDelayMs;
+    const max = Math.max(min, settings.maxScrollDelayMs);
+    return min + Math.floor(Math.random() * (max - min + 1));
   }
+
+  /** Termo buscado, lido da própria URL — vira coluna no export. */
+  function currentSearchQuery() {
+    const match = window.location.pathname.match(/\/maps\/search\/([^/]+)/);
+    if (match) return decodeURIComponent(match[1].replace(/\+/g, ' '));
+    return '';
+  }
+
+  // --- coleta ---------------------------------------------------------------
 
   /**
    * Rola o feed até o fim dos resultados, até travar ou até o usuário parar.
@@ -53,7 +65,6 @@
     let lastScrollHeight = -1;
 
     while (isExtracting) {
-      console.log('[gms] paginando...');
       feed.scrollTop = feed.scrollHeight;
       await wait(randomScrollDelay());
 
@@ -72,8 +83,6 @@
         stalledScrolls = 0;
         lastScrollHeight = feed.scrollHeight;
       }
-
-      console.log(`[gms] travas: ${stalledScrolls}, altura: ${feed.scrollHeight}`);
     }
   }
 
@@ -94,61 +103,116 @@
     } finally {
       isExtracting = false;
       OverlayUI.setExtracting(false);
+      await LeadStore.flushNow();
       console.log('[gms] coleta finalizada');
     }
   }
 
-  function exportLeads() {
-    chrome.runtime.sendMessage({ action: 'openPage', data: leads });
-  }
-
-  function clearLeads() {
-    leads.length = 0;
-    seenPlaceIds.clear();
-    refreshCount();
-  }
+  // --- enriquecimento -------------------------------------------------------
 
   /** Busca e-mail e redes sociais no site do lead (trabalho feito no service worker). */
   async function enrichLead(lead) {
-    if (!lead.website || !collectEmail) return lead;
-    try {
-      const found = await chrome.runtime.sendMessage({
+    if (!lead.website || !settings.collectEmail) return;
+
+    const found = await withRetry(() =>
+      chrome.runtime.sendMessage({
         action: 'email',
-        data: { website: lead.website, name: lead.name, deep_search: true },
-      });
-      if (found) {
-        for (const field in found) lead[field] = found[field].join();
-      }
-    } catch (error) {
-      console.warn('[gms] falha ao enriquecer lead:', lead.name, error);
+        data: { website: lead.website, name: lead.name, deep_search: settings.deepSearch },
+      })
+    );
+
+    if (!found) return;
+    for (const field in found) {
+      if (Array.isArray(found[field])) lead[field] = found[field].join();
     }
-    return lead;
+    LeadStore.save(lead);
   }
 
-  async function handleSearchPayload(rawBody) {
-    const parsed = parseSearchResponse(rawBody);
-    const fresh = [];
+  // --- entrada de dados -----------------------------------------------------
 
-    for (const lead of parsed) {
-      if (seenPlaceIds.has(lead.placeID)) continue;
-      seenPlaceIds.add(lead.placeID);
-      fresh.push(lead);
+  function handleSearchPayload(rawBody) {
+    let parsed;
+    try {
+      parsed = parseSearchResponse(rawBody);
+    } catch (error) {
+      console.warn('[gms] payload de busca ilegível:', error);
+      return;
     }
 
-    const enriched = await Promise.all(fresh.map(enrichLead));
-    leads.push(...enriched);
-    console.log(`[gms] ${enriched.length} novos leads (total ${leads.length})`);
-    refreshCount();
+    const query = currentSearchQuery();
+    const scrapedAt = new Date().toISOString();
+    let added = 0;
+
+    for (const lead of parsed) {
+      lead.key = buildLeadKey(lead);
+      if (knownKeys.has(lead.key)) continue;
+      knownKeys.add(lead.key);
+
+      lead.search_query = query;
+      lead.scraped_at = scrapedAt;
+      applyPhoneFields(lead, settings.defaultCountry);
+
+      // Grava já, sem esperar o enriquecimento: F5 não pode custar o lead.
+      LeadStore.save(lead);
+      added += 1;
+
+      queue.push(async () => {
+        try {
+          await enrichLead(lead);
+        } catch (error) {
+          console.warn('[gms] falha ao enriquecer', lead.name, error);
+        }
+      });
+    }
+
+    if (added === 0) return;
+    leadCount += added;
+    OverlayUI.setCount(leadCount);
+    console.log(`[gms] ${added} novos leads (total ${leadCount})`);
   }
 
   window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
     if (!event.data || event.data.type !== 'search' || !event.data.data) return;
     handleSearchPayload(event.data.data);
   });
 
-  OverlayUI.init({
-    onToggleExtract: toggleExtract,
-    onExport: exportLeads,
-    onClear: clearLeads,
-  });
+  // --- ciclo de vida --------------------------------------------------------
+
+  async function openDashboard() {
+    await LeadStore.flushNow();
+    chrome.runtime.sendMessage({ action: 'openPage' });
+  }
+
+  async function clearBase() {
+    await LeadStore.clear();
+    knownKeys = new Set();
+    leadCount = 0;
+    OverlayUI.setCount(0);
+    console.log('[gms] base local apagada');
+  }
+
+  async function updateSettings(patch) {
+    settings = await LeadStore.saveSettings(patch);
+    if (queue) queue.setConcurrency(settings.concurrency);
+  }
+
+  (async function start() {
+    settings = await LeadStore.getSettings();
+    knownKeys = await LeadStore.allKeys();
+    leadCount = knownKeys.size;
+
+    queue = createTaskQueue({
+      concurrency: settings.concurrency,
+      onProgress: (stats) => OverlayUI.setProgress(stats),
+    });
+
+    OverlayUI.init(settings, {
+      onToggleExtract: toggleExtract,
+      onExport: openDashboard,
+      onClear: clearBase,
+      onSettingChange: updateSettings,
+    });
+    OverlayUI.setCount(leadCount);
+  })();
 })();
