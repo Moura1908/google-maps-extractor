@@ -59,6 +59,36 @@ function getTimestamp() {
   return `[${new Date().toISOString()}]`;
 }
 
+/**
+ * Guarda contra SSRF: o campo `website` do lead vem do payload do Google Maps,
+ * ou seja, é escrito por um terceiro (o dono do estabelecimento). Sem esta
+ * checagem, um valor como `http://192.168.1.1/admin` ou `http://localhost:8080`
+ * faria a extensão buscar a rede local do próprio usuário e devolver o
+ * conteúdo para os regex de e-mail/redes sociais.
+ *
+ * Cobre loopback, RFC 1918, link-local e IPv6 loopback por nome/IP literal —
+ * não cobre DNS rebinding (domínio público resolvendo para IP privado), que
+ * a extensão não tem como verificar sem um proxy próprio.
+ */
+const BLOCKED_HOSTS = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[?::1\]?)/i;
+const BLOCKED_172_RANGE = /^172\.(1[6-9]|2\d|3[01])\./;
+
+function isPublicHttpUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (error) {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+  const host = parsed.hostname.toLowerCase();
+  if (BLOCKED_HOSTS.test(host) || BLOCKED_172_RANGE.test(host)) return false;
+  if (host.endsWith('.local') || host.endsWith('.internal')) return false;
+
+  return true;
+}
+
 /** Cloudflare troca o e-mail por um hex cifrado com XOR de 1 byte. */
 function decodeCloudflareEmail(hex) {
   let decoded = '';
@@ -101,6 +131,11 @@ function normalizeSocialLink(rawUrl) {
 
 /** Busca uma URL com timeout — site lento não pode travar a fila inteira. */
 async function fetchUrlContent(url, timeoutMs = 10000) {
+  if (!isPublicHttpUrl(url)) {
+    console.warn(getTimestamp(), '[gms] destino bloqueado (rede local ou esquema inválido):', url);
+    return '';
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -260,4 +295,8 @@ async function extractContacts(rawUrl, _name, deepSearch) {
     console.warn(getTimestamp(), `[gms] erro ao processar ${rawUrl}`, error);
     return EMPTY_RESULT();
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { isPublicHttpUrl, fetchUrlContent, extractContacts, getDomainName, decodeCloudflareEmail };
 }

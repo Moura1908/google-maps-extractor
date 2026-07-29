@@ -1,6 +1,6 @@
 # Plano de Evolução
 
-> Documento vivo. Última revisão: **2026-07-28** · Estado do código: **v2.0.0** (commit `bce0d84`)
+> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Bloco 0 concluído**
 >
 > Este plano existe para que qualquer pessoa — inclusive você daqui a oito meses — consiga
 > retomar o projeto sabendo **o que falta, por que importa e em que ordem fazer**, sem
@@ -122,25 +122,29 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 | Dashboard com filtros e export filtrado | Export respeita o filtro ativo |
 | 50 testes (`npm test`) | Parser, dedupe, telefone, storage, fila e boot do content script |
 | 24 MB → 1,6 MB | Semantic UI, ECharts, jQuery, axios, bootstrap eram carga morta |
+| **CSV/XLSX sanitizado contra injeção de fórmula** | `accessorDownload` neutraliza `= + - @` na exportação, sem alterar o valor exibido na tela |
+| **SSRF bloqueado no enriquecimento** | `isPublicHttpUrl()` recusa loopback, RFC 1918, link-local e `.local`/`.internal` antes de qualquer `fetch` |
+| **Handler `access` removido** | Proxy de fetch arbitrário sem contrapartida — apagado |
+| 68 testes (`npm test`) | +18 desde a v2.0.0: sanitização de fórmula e guarda de SSRF |
 
 ### Notas do estado atual
 
 | Eixo | Nota | Comentário |
 |---|---|---|
 | Arquitetura | 8,0 | Limpa; presa a índices posicionais e escopo global — inerente ao domínio |
-| Código | 8,5 | Legível, comentado no *porquê*, sem código morto (exceto `access`) |
+| Código | 8,5 | Legível, comentado no *porquê*, sem código morto |
 | Organização | 8,0 | Falta `payload-map.md` e hook de teste |
 | UX | 6,5 | Não mostra quanto falta, não separa campanhas, sem histórico |
 | UI | 6,5 | Funcional e consistente; não memorável — aceitável para ferramenta de trabalho |
-| **Segurança** | **4,5** | **CSV injection ativo, SSRF local aberto, handler órfão** |
+| **Segurança** | **8,5** | **Bloco 0 concluído**: CSV injection sanitizado, SSRF bloqueado, handler órfão removido. Falta o que depende de gatilho futuro (§4.3 lista de supressão) |
 | Performance | 7,0 | Concorrência resolvida; falta cache e parada antecipada |
 | Escalabilidade | 6,0 | Sólida até ~20k leads; degrada por carregar tudo em memória |
 | Documentação | 8,0 | README honesto com limitações declaradas |
 | Produto | 6,0 | Entrega matéria-prima, não decisão; teto de ~120 resultados por busca |
 | Inovação | 7,5 | A interceptação de API interna é boa; o resto é commodity |
-| **Qualidade geral** | **7,0** | Base sólida, dívida de segurança concentrada, teto de produto aberto |
+| **Qualidade geral** | **7,5** | Base sólida, segurança zerada, teto de produto e cobertura ainda abertos (Blocos 2–3) |
 
-*(Antes da refatoração de 2026-07-28: 3,5.)*
+*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração, antes do Bloco 0: 7,0.)*
 
 ---
 
@@ -150,9 +154,9 @@ Achados confirmados no código, com localização. Cada um vira um item do roadm
 
 | # | Achado | Onde | Gravidade |
 |---|---|---|---|
-| D1 | CSV/XLSX sem sanitização de fórmula | `js/dashboard.js` (download) | 🔴 Crítica |
-| D2 | `fetch` para qualquer host, inclusive rede local | `src/background/enrich.js:fetchUrlContent` | 🔴 Crítica |
-| D3 | Handler `access` órfão = proxy de fetch arbitrário | `src/background/router.js:19` | 🟠 Alta |
+| ~~D1~~ | ~~CSV/XLSX sem sanitização de fórmula~~ | `src/shared/csvsafe.js` | ✅ Resolvido (Bloco 0) |
+| ~~D2~~ | ~~`fetch` para qualquer host, inclusive rede local~~ | `src/background/enrich.js:isPublicHttpUrl` | ✅ Resolvido (Bloco 0) |
+| ~~D3~~ | ~~Handler `access` órfão = proxy de fetch arbitrário~~ | `src/background/router.js` | ✅ Resolvido (Bloco 0) |
 | D4 | Quebra de índice do payload é silenciosa | `src/content/parser.js` | 🟠 Alta |
 | D5 | Mapa de índices só existe em comentários | `src/content/parser.js:FIELD_PATHS` | 🟠 Alta |
 | D6 | Nenhuma qualificação de lead | — (ausência) | 🟠 Alta |
@@ -171,8 +175,12 @@ Achados confirmados no código, com localização. Cada um vira um item do roadm
 
 ### Bloco 0 — Dívida de segurança (crítico)
 
-> **Total: ~1h15.** Elimina a única nota abaixo de 6 do projeto. Fazer antes de qualquer outra
-> coisa — são mudanças pequenas, isoladas e de risco nulo.
+> ✅ **Concluído em 2026-07-29.** Total real: ~1h — os três itens saíram como planejado, sem
+> desvio de escopo. Nota de segurança: 4,5 → 8,5. +18 testes (`test/csvsafe.test.js`,
+> `test/enrich.test.js`).
+
+<details>
+<summary>Detalhamento original (mantido para histórico e para quem revisitar a decisão)</summary>
 
 ---
 
@@ -283,6 +291,8 @@ esperando por quem souber falar com ele.
 **Esforço** 2 min · **Risco** Nulo · **Depende de** nada
 
 ---
+
+</details>
 
 ### Bloco 1 — Proteger o ativo
 
@@ -597,6 +607,8 @@ Registradas para não serem re-litigadas a cada sessão.
 | **Export respeita o filtro ativo** | Filtrar na tela e baixar a base inteira é armadilha silenciosa |
 | **Gravar o lead antes de enriquecer** | F5 no meio da coleta não pode custar nada |
 | **Nunca chutar índice do payload** | Um índice errado produz dado plausível e falso — pior que campo vazio |
+| **Sanitizar na exportação, nunca no dado armazenado** | `accessorDownload` neutraliza fórmula só no CSV/XLSX; a tela e a base local mantêm o valor original. Sanitizar na entrada destruiria dado legítimo (ex. nome de empresa começando com número negativo) |
+| **Bloquear por IP/host literal, não por resolução de DNS** | `isPublicHttpUrl` barra loopback e RFC 1918 escritos diretamente na URL. Não resolve DNS rebinding — o custo de um proxy próprio não se justifica pelo risco residual numa ferramenta de usuário único |
 
 ---
 
@@ -663,8 +675,8 @@ Sem baseline, nenhuma otimização futura é justificável.
 ### Ordem de execução recomendada
 
 ```
-Bloco 0  (1h15)  ──►  segurança zerada, nota sobe de 4,5 para ~8,5
-Bloco 1  (2h45)  ──►  o ativo protegido: quebra de parser passa a ser visível
+Bloco 0  (1h15)  ✅ CONCLUÍDO 2026-07-29 — segurança 4,5 → 8,5
+Bloco 1  (2h45)  ──►  próximo: o ativo protegido, quebra de parser passa a ser visível
 Bloco 2  (7h)    ──►  a ferramenta passa a entregar decisão, não lista
 Bloco 3  (8h)    ──►  cobertura real 10–30x
 Bloco 4  (por gatilho, medindo antes)

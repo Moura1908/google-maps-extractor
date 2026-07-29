@@ -111,6 +111,10 @@ function buildColumns(fields) {
     resizable: true,
     headerFilter: 'input',
     visible: !HIDDEN_BY_DEFAULT.has(field),
+    // Neutraliza fórmula (CSV/XLSX Injection) só na exportação — a tela
+    // continua mostrando o valor original. O nome do estabelecimento vem
+    // do Google Maps, ou seja, é escrito por terceiro.
+    accessorDownload: sanitizeForSpreadsheet,
   }));
 }
 

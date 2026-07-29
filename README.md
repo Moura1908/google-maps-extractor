@@ -79,13 +79,17 @@ Para zerar: **Limpar base**, no painel ou no dashboard (exige dois cliques).
 npm test    # node --test test/*.test.js
 ```
 
-50 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+68 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a sanitização de exportação, a guarda contra SSRF, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+
+## Segurança
+
+Exportação sanitizada contra injeção de fórmula (`src/shared/csvsafe.js`) e enriquecimento bloqueado contra requisição a rede local/loopback (`isPublicHttpUrl` em `src/background/enrich.js`) — ambos os campos de entrada (`name`, `website`) vêm do payload do Google Maps, ou seja, são escritos por terceiro.
 
 ## Para onde o projeto vai
 
 `docs/PLANO-DE-EVOLUCAO.md` tem o diagnóstico completo, o roadmap em blocos (com critério de
 aceite e esforço por item), as decisões já tomadas e o que foi deliberadamente descartado.
-Comece pelo **Bloco 0** — são três correções de segurança que somam ~1h15.
+**Bloco 0 (segurança) concluído** — próximo é o Bloco 1 (proteger o mapa de índices do parser).
 
 ## Limitações conhecidas
 

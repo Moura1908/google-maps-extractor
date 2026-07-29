@@ -15,11 +15,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       chrome.tabs.create({ url: 'dashboard.html' });
       return false;
 
-    // Busca uma URL qualquer sem esbarrar em CORS.
-    case 'access':
-      (async () => sendResponse(await fetchUrlContent(message.data.url)))();
-      return true;
-
     // Enriquece um lead: e-mail + perfis sociais a partir do site.
     case 'email':
       (async () => {
