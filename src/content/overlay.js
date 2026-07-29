@@ -17,6 +17,7 @@ const OverlayUI = (() => {
   let panel = null;
   let statusLabel = null;
   let progressLabel = null;
+  let warningLabel = null;
   let startButton = null;
   let exportButton = null;
   let clearButton = null;
@@ -61,6 +62,13 @@ const OverlayUI = (() => {
     progressLabel.className = 'extension_gms_progress';
     progressLabel.innerText = '';
 
+    // Elemento próprio, separado do progresso: um índice do payload quebrado
+    // não pode ser mostrado por um segundo e sumir no próximo tick da fila.
+    warningLabel = document.createElement('p');
+    warningLabel.className = 'extension_gms_warning';
+    warningLabel.innerText = '';
+    warningLabel.style.display = 'none';
+
     startButton = createButton('extension_gms_start_btn', 'Iniciar extração');
     startButton.addEventListener('click', () => handlers.onToggleExtract());
 
@@ -99,7 +107,7 @@ const OverlayUI = (() => {
       )
     );
 
-    panel.append(statusLabel, progressLabel, startButton, exportButton, clearButton, options);
+    panel.append(statusLabel, warningLabel, progressLabel, startButton, exportButton, clearButton, options);
     return panel;
   }
 
@@ -147,6 +155,16 @@ const OverlayUI = (() => {
     setMessage(text) {
       if (!progressLabel) return;
       progressLabel.innerText = text;
+    },
+    /**
+     * Aviso persistente de alta severidade (ex.: esquema do payload quebrado).
+     * Fica visível até ser limpo explicitamente — não é sobrescrito pelos
+     * ticks de `setProgress`, que rodam a cada lead enriquecido.
+     */
+    setWarning(text) {
+      if (!warningLabel) return;
+      warningLabel.innerText = text;
+      warningLabel.style.display = text ? 'block' : 'none';
     },
     setExtracting(isExtracting) {
       if (!startButton) return;

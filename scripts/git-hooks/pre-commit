@@ -1,0 +1,10 @@
+#!/bin/sh
+# Instalado automaticamente por `npm install` (ver scripts/install-git-hooks.js).
+# Fonte versionada: scripts/git-hooks/pre-commit — não edite .git/hooks/pre-commit
+# diretamente, a cópia lá é regenerada a cada `npm install`.
+#
+# 50+ testes que ninguém roda à mão ficam vermelhos sem aviso. Isto os roda a
+# cada commit. Para um commit só de documentação, pule com:
+#   git commit --no-verify
+
+npm test

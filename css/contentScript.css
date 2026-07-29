@@ -38,6 +38,19 @@
     color: #5f6368;
 }
 
+/* Aviso persistente de esquema quebrado — canário do parser (docs/PLANO-DE-EVOLUCAO.md, Bloco 1).
+   Separado de .extension_gms_progress de propósito: não pode ser sobrescrito
+   pelos ticks de progresso do enriquecimento. */
+.extension_gms_warning {
+    margin: 0;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    background-color: #d93025;
+    border-radius: 4px;
+}
+
 .extension_gms_options {
     display: flex;
     flex-direction: column;

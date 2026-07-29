@@ -10,6 +10,9 @@
  *
  * Estrutura: corpo -> envelope.d (string) -> array gigante -> [64] é o feed.
  * Cada item do feed guarda os dados no ÚLTIMO elemento do próprio array.
+ *
+ * Mapa completo, verificado e versionado: docs/payload-map.md — inclui o
+ * procedimento de remapeamento quando um índice quebrar.
  */
 
 /** Índices conhecidos dentro do registro de um estabelecimento. */

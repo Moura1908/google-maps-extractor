@@ -1,6 +1,6 @@
 # Plano de Evolução
 
-> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Bloco 0 concluído**
+> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0 e 1 concluídos**
 >
 > Este plano existe para que qualquer pessoa — inclusive você daqui a oito meses — consiga
 > retomar o projeto sabendo **o que falta, por que importa e em que ordem fazer**, sem
@@ -125,7 +125,10 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 | **CSV/XLSX sanitizado contra injeção de fórmula** | `accessorDownload` neutraliza `= + - @` na exportação, sem alterar o valor exibido na tela |
 | **SSRF bloqueado no enriquecimento** | `isPublicHttpUrl()` recusa loopback, RFC 1918, link-local e `.local`/`.internal` antes de qualquer `fetch` |
 | **Handler `access` removido** | Proxy de fetch arbitrário sem contrapartida — apagado |
-| 68 testes (`npm test`) | +18 desde a v2.0.0: sanitização de fórmula e guarda de SSRF |
+| **Canário de esquema do parser** | `assessSchemaHealth()` avisa em vermelho no painel quando o Google reordena o payload, em vez de exportar telefone vazio em silêncio |
+| **`docs/payload-map.md` versionado** | Tabela de índices com data de verificação + procedimento de remapeamento — linkado no README e no cabeçalho de `parser.js` |
+| **Hook de pre-commit** | `npm install` instala automaticamente (fonte versionada em `scripts/git-hooks/`) — testes rodam antes de cada commit |
+| 82 testes (`npm test`) | +14 desde o Bloco 0: canário de esquema (11) + 3 casos de ponta a ponta |
 
 ### Notas do estado atual
 
@@ -133,18 +136,18 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 |---|---|---|
 | Arquitetura | 8,0 | Limpa; presa a índices posicionais e escopo global — inerente ao domínio |
 | Código | 8,5 | Legível, comentado no *porquê*, sem código morto |
-| Organização | 8,0 | Falta `payload-map.md` e hook de teste |
+| **Organização** | **8,5** | `payload-map.md` e hook de teste resolvidos (Bloco 1). Falta só `screenshot/` desatualizado (D14) |
 | UX | 6,5 | Não mostra quanto falta, não separa campanhas, sem histórico |
 | UI | 6,5 | Funcional e consistente; não memorável — aceitável para ferramenta de trabalho |
 | **Segurança** | **8,5** | **Bloco 0 concluído**: CSV injection sanitizado, SSRF bloqueado, handler órfão removido. Falta o que depende de gatilho futuro (§4.3 lista de supressão) |
 | Performance | 7,0 | Concorrência resolvida; falta cache e parada antecipada |
 | Escalabilidade | 6,0 | Sólida até ~20k leads; degrada por carregar tudo em memória |
-| Documentação | 8,0 | README honesto com limitações declaradas |
+| **Documentação** | **8,5** | README honesto + `payload-map.md` versionado transformam arqueologia em consulta |
 | Produto | 6,0 | Entrega matéria-prima, não decisão; teto de ~120 resultados por busca |
 | Inovação | 7,5 | A interceptação de API interna é boa; o resto é commodity |
-| **Qualidade geral** | **7,5** | Base sólida, segurança zerada, teto de produto e cobertura ainda abertos (Blocos 2–3) |
+| **Qualidade geral** | **7,8** | Segurança e o ativo do parser protegidos; teto de produto e cobertura ainda abertos (Blocos 2–3) |
 
-*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração, antes do Bloco 0: 7,0.)*
+*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração, antes do Bloco 0: 7,0 · pós-Bloco 0: 7,5.)*
 
 ---
 
@@ -157,15 +160,15 @@ Achados confirmados no código, com localização. Cada um vira um item do roadm
 | ~~D1~~ | ~~CSV/XLSX sem sanitização de fórmula~~ | `src/shared/csvsafe.js` | ✅ Resolvido (Bloco 0) |
 | ~~D2~~ | ~~`fetch` para qualquer host, inclusive rede local~~ | `src/background/enrich.js:isPublicHttpUrl` | ✅ Resolvido (Bloco 0) |
 | ~~D3~~ | ~~Handler `access` órfão = proxy de fetch arbitrário~~ | `src/background/router.js` | ✅ Resolvido (Bloco 0) |
-| D4 | Quebra de índice do payload é silenciosa | `src/content/parser.js` | 🟠 Alta |
-| D5 | Mapa de índices só existe em comentários | `src/content/parser.js:FIELD_PATHS` | 🟠 Alta |
+| ~~D4~~ | ~~Quebra de índice do payload é silenciosa~~ | `src/content/schema-health.js` | ✅ Resolvido (Bloco 1) |
+| ~~D5~~ | ~~Mapa de índices só existe em comentários~~ | `docs/payload-map.md` | ✅ Resolvido (Bloco 1) |
 | D6 | Nenhuma qualificação de lead | — (ausência) | 🟠 Alta |
 | D7 | Teto de ~120 resultados por busca | Limitação do Google Maps | 🟠 Alta |
 | D8 | Base acumula tudo sem separar campanhas | `js/dashboard.js` | 🟡 Média |
 | D9 | Enriquecimento sem cache; deep search sempre roda | `src/background/enrich.js:extractContacts` | 🟡 Média |
 | D10 | `allLeads()` carrega a base inteira em memória | `src/shared/storage.js` | 🟡 Média (futura) |
 | D11 | Sem lista de supressão (LGPD) | — (ausência) | 🟡 Média |
-| D12 | Sem hook rodando os testes | — (ausência) | 🟢 Baixa |
+| ~~D12~~ | ~~Sem hook rodando os testes~~ | `scripts/git-hooks/pre-commit` | ✅ Resolvido (Bloco 1) |
 | D13 | Coleta não informa progresso nem conclusão | `src/content/scraper.js` | 🟢 Baixa |
 | D14 | `screenshot/` (2,5 MB) mostra a UI antiga | `screenshot/` | 🟢 Baixa |
 
@@ -296,8 +299,22 @@ esperando por quem souber falar com ele.
 
 ### Bloco 1 — Proteger o ativo
 
-> **Total: ~2h30.** O mapa de índices é o que dá valor ao projeto. Estes dois itens fazem a
-> diferença entre "quebrou e avisou" e "quebrou e você descobriu na campanha".
+> ✅ **Concluído em 2026-07-29.** Nota de organização/código sem mudança visível na tabela
+> (já eram altas), mas o risco de silêncio em D4 está fechado. +14 testes (82 no total):
+> `test/schema-health.test.js` (11) e 3 casos de ponta a ponta em `test/contentscript.test.js`.
+>
+> **Dois desvios deliberados do texto original**, registrados aqui porque mudam comportamento:
+> - **1.1** usa `OverlayUI.setWarning()`, não `OverlayUI.setMessage()` como o rascunho original
+>   sugeria. Os dois dividiam o mesmo elemento (`progressLabel`); como `setProgress()` reescreve
+>   esse texto a cada lead enriquecido, um aviso de esquema quebrado seria apagado no próximo
+>   tick da fila — exatamente o tipo de falha silenciosa que este item existe para eliminar.
+>   `setWarning()` usa um elemento próprio, persistente até ser limpo explicitamente.
+> - **1.3** não escreve direto em `.git/hooks/pre-commit` porque esse diretório não é versionado
+>   pelo git — o hook se perderia num clone novo. A fonte ficou em `scripts/git-hooks/pre-commit`,
+>   instalada via `npm install` (script `prepare` em `scripts/install-git-hooks.js`).
+
+<details>
+<summary>Detalhamento original (mantido para histórico)</summary>
 
 ---
 
@@ -371,6 +388,8 @@ um campo novo e adicioná-lo a `FIELD_PATHS`.
 **Esforço** 15 min · **Risco** Nulo
 
 ---
+
+</details>
 
 ### Bloco 2 — De lista para decisão
 
@@ -676,8 +695,8 @@ Sem baseline, nenhuma otimização futura é justificável.
 
 ```
 Bloco 0  (1h15)  ✅ CONCLUÍDO 2026-07-29 — segurança 4,5 → 8,5
-Bloco 1  (2h45)  ──►  próximo: o ativo protegido, quebra de parser passa a ser visível
-Bloco 2  (7h)    ──►  a ferramenta passa a entregar decisão, não lista
+Bloco 1  (2h30)  ✅ CONCLUÍDO 2026-07-29 — canário de esquema, payload-map.md, pre-commit
+Bloco 2  (7h)    ──►  próximo: a ferramenta passa a entregar decisão, não lista
 Bloco 3  (8h)    ──►  cobertura real 10–30x
 Bloco 4  (por gatilho, medindo antes)
 Bloco 5  (quando os anteriores estiverem estáveis)

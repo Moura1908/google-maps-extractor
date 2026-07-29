@@ -140,6 +140,18 @@
       country: countryFromMapsHost(window.location.host) || settings.defaultCountry,
     });
 
+    // Canário de esquema: um índice do payload que mudou faz o campo vir
+    // vazio em silêncio. Isso avisa na hora, em vez de na exportação.
+    const health = assessSchemaHealth(fresh);
+    if (!health.healthy) {
+      console.error('[gms] esquema do payload degradado:', health.degraded);
+      OverlayUI.setWarning(formatSchemaWarning(health.degraded));
+    } else if (health.sampled) {
+      // Só limpa um aviso anterior quando o lote atual foi grande o
+      // suficiente para confirmar que voltou ao normal.
+      OverlayUI.setWarning('');
+    }
+
     for (const lead of fresh) {
       // Grava já, sem esperar o enriquecimento: F5 não pode custar o lead.
       LeadStore.save(lead);

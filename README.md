@@ -45,15 +45,23 @@ src/background/enrich.js  busca e-mail e redes sociais no site do lead
 
 Vantagem: dados completos e estáveis contra mudança de layout. Desvantagem: os campos são lidos por **posição no array** (`entry[11]` = nome, `entry[178][0][0]` = telefone…). Quando o Google reordena esse array, o campo correspondente vem vazio — e só ele, porque cada leitura é isolada.
 
+Um canário de esquema (`src/content/schema-health.js`) mede a taxa de preenchimento de
+`name`/`phone`/`placeID` a cada lote e mostra um aviso vermelho no painel quando o padrão indica
+que o Google reordenou o array — em vez de deixar a exportação sair com telefone vazio em
+silêncio.
+
 ### Quando um campo parar de vir
 
-O payload cru do último lote fica exposto no console da aba do Maps:
+**`docs/payload-map.md`** tem a tabela completa de índices (com data da última verificação), o
+formato do envelope e o passo a passo de remapeamento. Resumo rápido: o payload cru do último
+lote fica exposto no console da aba do Maps —
 
 ```js
 copy(__gmsDebug.lastEntry)   // registro completo do primeiro resultado
 ```
 
-Compare com `FIELD_PATHS` em `src/content/parser.js` e corrija o índice.
+— compare com `FIELD_PATHS` em `src/content/parser.js`, corrija o índice, e **atualize a tabela
+do payload-map.md** com a data.
 
 ## Dados extraídos
 
@@ -79,7 +87,9 @@ Para zerar: **Limpar base**, no painel ou no dashboard (exige dois cliques).
 npm test    # node --test test/*.test.js
 ```
 
-68 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a sanitização de exportação, a guarda contra SSRF, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+82 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a sanitização de exportação, a guarda contra SSRF, o canário de esquema, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+
+`npm install` instala um hook de pre-commit que roda `npm test` antes de cada commit (fonte em `scripts/git-hooks/pre-commit`; `.git/hooks/` não é versionado, por isso a instalação é automática em vez de manual). Para um commit só de documentação, pule com `git commit --no-verify`.
 
 ## Segurança
 
@@ -95,7 +105,7 @@ aceite e esforço por item), as decisões já tomadas e o que foi deliberadament
 
 - O e-mail é buscado com `fetch` estático: sites que só renderizam por JavaScript não entregam nada.
 - O painel depende de classes ofuscadas do Maps (`.w6VYqd`, `.HlvSq`). Há fallback para o painel não sumir, mas a detecção de "fim da lista" pode falhar — nesse caso a coleta para pela trava de rolagem.
-- Plus Code, status do negócio e faixa de preço aparecem no payload, mas os índices ainda não foram mapeados (use `__gmsDebug` acima).
+- Plus Code, status do negócio e faixa de preço aparecem no payload, mas os índices ainda não foram mapeados — ver `docs/payload-map.md` §5.
 - Volume alto de extração pode disparar o CAPTCHA do Google. O intervalo entre rolagens é aleatório justamente para reduzir isso.
 
 ## Aviso

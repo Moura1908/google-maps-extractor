@@ -200,6 +200,62 @@ test('limpar a base exige dois cliques', async () => {
   assert.ok(!storage['lead:place:1'], 'o segundo clique apaga');
 });
 
+function findWarningLabel(env) {
+  const panel = env.body.children.find((child) => child.className.includes('extension_gms_page'));
+  return panel.children.find((child) => child.className === 'extension_gms_warning');
+}
+
+test('um lote com telefone sistematicamente vazio dispara o aviso de esquema quebrado', async () => {
+  const { env } = loadContentScripts();
+  await tick();
+
+  const entries = Array.from({ length: 12 }, (_, i) =>
+    buildEntry({ placeID: `place-broken-${i}`, cID: `cid-broken-${i}`, name: `Negócio ${i}`, phone: null })
+  );
+  env.windowStub.postMessage({ type: 'search', data: buildSearchResponse(entries) });
+  await tick();
+
+  const warning = findWarningLabel(env);
+  assert.strictEqual(warning.style.display, 'block');
+  assert.match(warning.innerText, /`phone`/);
+  assert.match(warning.innerText, /não está sendo lido/);
+});
+
+test('um lote saudável subsequente limpa o aviso de esquema', async () => {
+  const { env } = loadContentScripts();
+  await tick();
+
+  const broken = Array.from({ length: 12 }, (_, i) =>
+    buildEntry({ placeID: `place-broken-${i}`, cID: `cid-broken-${i}`, phone: null })
+  );
+  env.windowStub.postMessage({ type: 'search', data: buildSearchResponse(broken) });
+  await tick();
+  assert.strictEqual(findWarningLabel(env).style.display, 'block', 'pré-condição: aviso ativo');
+
+  const healthy = Array.from({ length: 12 }, (_, i) =>
+    buildEntry({ placeID: `place-ok-${i}`, cID: `cid-ok-${i}` })
+  );
+  env.windowStub.postMessage({ type: 'search', data: buildSearchResponse(healthy) });
+  await tick();
+
+  const warning = findWarningLabel(env);
+  assert.strictEqual(warning.style.display, 'none');
+  assert.strictEqual(warning.innerText, '');
+});
+
+test('um lote pequeno com telefone vazio não dispara aviso (amostra insuficiente)', async () => {
+  const { env } = loadContentScripts();
+  await tick();
+
+  const small = Array.from({ length: 3 }, (_, i) =>
+    buildEntry({ placeID: `place-small-${i}`, cID: `cid-small-${i}`, phone: null })
+  );
+  env.windowStub.postMessage({ type: 'search', data: buildSearchResponse(small) });
+  await tick();
+
+  assert.strictEqual(findWarningLabel(env).style.display, 'none');
+});
+
 test('o mesmo lead chegando duas vezes não duplica na base', async () => {
   const storage = {};
   const { env } = loadContentScripts({ storage });

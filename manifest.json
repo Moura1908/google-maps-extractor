@@ -427,6 +427,7 @@
         "src/shared/storage.js",
         "src/content/parser.js",
         "src/content/ingest.js",
+        "src/content/schema-health.js",
         "src/content/queue.js",
         "src/content/overlay.js",
         "src/content/scraper.js"

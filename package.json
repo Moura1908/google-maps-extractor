@@ -4,6 +4,7 @@
   "private": true,
   "description": "Extensão Chrome MV3 para extrair leads B2B do Google Maps. Sem build step: a pasta é carregada direto em chrome://extensions.",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "prepare": "node scripts/install-git-hooks.js"
   }
 }
