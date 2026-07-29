@@ -30,6 +30,10 @@ function ingestSearchPayload(rawBody, { knownKeys, query = '', country = 'BR', n
     lead.search_query = query;
     lead.scraped_at = scrapedAt;
     applyPhoneFields(lead, country);
+    // Score calculado já na ingestão: e-mail e redes ainda não chegaram, mas
+    // os sinais mais fortes (sem site, nota, perfil incompleto) já estão
+    // presentes. scraper.js recalcula depois que o enriquecimento retorna.
+    applyOpportunityFields(lead);
     fresh.push(lead);
   }
 
@@ -41,8 +45,10 @@ if (typeof module !== 'undefined' && module.exports) {
   const { parseSearchResponse } = require('./parser.js');
   const { buildLeadKey } = require('../shared/leadkey.js');
   const { applyPhoneFields } = require('../shared/phone.js');
+  const { applyOpportunityFields } = require('../shared/opportunity.js');
   global.parseSearchResponse = global.parseSearchResponse || parseSearchResponse;
   global.buildLeadKey = global.buildLeadKey || buildLeadKey;
   global.applyPhoneFields = global.applyPhoneFields || applyPhoneFields;
+  global.applyOpportunityFields = global.applyOpportunityFields || applyOpportunityFields;
   module.exports = { ingestSearchPayload };
 }

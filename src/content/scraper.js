@@ -23,6 +23,9 @@
   let leadCount = 0;
   let isExtracting = false;
   let queue = null;
+  // Zerado a cada "Iniciar extração": é o que aparece como "Rolando... N
+  // novos" — distinto de leadCount, que é o total vitalício da base.
+  let sessionNewLeads = 0;
 
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -58,14 +61,19 @@
     const feed = document.querySelector('[role="feed"]');
     if (!feed) {
       // Acontece quando a aba está num lugar específico em vez de uma busca.
-      // Sem aviso, o botão só piscaria e voltaria sozinho.
+      // Sem aviso, o botão só piscaria e voltaria sozinho. `null` sinaliza
+      // "nem chegou a rodar" — toggleExtract não deve sobrescrever esta
+      // mensagem com um texto de conclusão genérico.
       console.error('[gms] lista de resultados não encontrada');
       OverlayUI.setMessage('Abra uma busca no Maps para extrair.');
-      return;
+      return null;
     }
 
     let stalledScrolls = 0;
     let lastScrollHeight = -1;
+    // Default: se o loop terminar porque isExtracting virou false por fora
+    // (usuário clicou em "Parar"), nenhum dos `break` abaixo é alcançado.
+    let stopReason = 'user_stopped';
 
     while (isExtracting) {
       feed.scrollTop = feed.scrollHeight;
@@ -73,6 +81,7 @@
 
       if (document.querySelector(END_OF_LIST_SELECTOR)) {
         console.log('[gms] fim dos resultados');
+        stopReason = 'end_of_list';
         break;
       }
 
@@ -80,6 +89,7 @@
         stalledScrolls += 1;
         if (stalledScrolls > MAX_STALLED_SCROLLS) {
           console.log(`[gms] lista sem crescer por ${MAX_STALLED_SCROLLS} rolagens`);
+          stopReason = 'stalled';
           break;
         }
       } else {
@@ -87,6 +97,8 @@
         lastScrollHeight = feed.scrollHeight;
       }
     }
+
+    return stopReason;
   }
 
   async function toggleExtract() {
@@ -98,11 +110,15 @@
     }
 
     isExtracting = true;
+    sessionNewLeads = 0;
     OverlayUI.setExtracting(true);
+    OverlayUI.setMessage(formatRollingMessage(0));
     console.log('[gms] coleta iniciada');
 
     try {
-      await runAutoExtract();
+      const stopReason = await runAutoExtract();
+      // null = nem chegou a rolar (sem feed): a mensagem já foi definida lá.
+      if (stopReason) OverlayUI.setMessage(formatCompletionMessage(stopReason, sessionNewLeads));
     } finally {
       isExtracting = false;
       OverlayUI.setExtracting(false);
@@ -128,6 +144,9 @@
     for (const field in found) {
       if (Array.isArray(found[field])) lead[field] = found[field].join();
     }
+    // Recalcula: e-mail e instagram só chegam agora, e a regra
+    // "instagram sem site" depende de instagram estar preenchido.
+    applyOpportunityFields(lead);
     LeadStore.save(lead);
   }
 
@@ -167,6 +186,14 @@
           console.warn('[gms] falha ao enriquecer', lead.name, error);
         }
       });
+    }
+
+    // Contador da sessão atual (desde o último "Iniciar extração"), distinto
+    // do total vitalício da base — atualiza mesmo quando o lote não trouxe
+    // nada novo, para o "Rolando..." não parecer travado.
+    if (isExtracting) {
+      sessionNewLeads += fresh.length;
+      OverlayUI.setMessage(formatRollingMessage(sessionNewLeads));
     }
 
     if (fresh.length === 0) return;

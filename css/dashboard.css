@@ -146,6 +146,18 @@ label.check input {
     font-size: 13px;
 }
 
+#filter-query {
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    max-width: 360px;
+}
+
 details.columns summary {
     cursor: pointer;
     font-size: 13px;

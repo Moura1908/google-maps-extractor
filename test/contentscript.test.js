@@ -143,6 +143,51 @@ test('o enriquecimento atualiza o lead já gravado', async () => {
   assert.strictEqual(lead.email, 'contato@cafecentral.com.br');
 });
 
+test('score de oportunidade: website que é um link do Instagram já soma tudo na ingestão', async () => {
+  const storage = {};
+  const { env } = loadContentScripts({ storage, sendMessage: async () => ({ email: [], instagram: [] }) });
+  await tick();
+
+  // 40 (sem site de verdade) + 15 (perfil incompleto) + 15 (perfil social no
+  // lugar de site) + 10 (celular) = 80. Nenhuma dessas regras depende de
+  // e-mail/instagram vindos do enriquecimento — todas leem só o payload cru.
+  env.windowStub.postMessage({
+    type: 'search',
+    data: buildSearchResponse([buildEntry({ website: 'https://www.instagram.com/loja' })]),
+  });
+  // A gravação tem debounce (ver src/shared/storage.js) — espera o flush.
+  await new Promise((resolve) => setTimeout(resolve, 900));
+
+  const lead = storage['lead:place:ChIJ_place_1'];
+  assert.strictEqual(lead.opportunity_score, 80);
+  assert.strictEqual(
+    lead.opportunity_reasons,
+    'sem site · perfil incompleto · só tem perfil social, sem site próprio · celular'
+  );
+});
+
+test('score de oportunidade sobrevive intacto ao recálculo pós-enriquecimento', async () => {
+  // O recálculo em enrichLead() é defensivo para regras futuras que dependam
+  // de e-mail/redes sociais encontradas — hoje nenhuma das 7 regras depende
+  // disso, então o valor não deve mudar entre a ingestão e o enriquecimento.
+  const storage = {};
+  const { env } = loadContentScripts({
+    storage,
+    sendMessage: async () => ({ email: ['contato@loja.com'], instagram: [] }),
+  });
+  await tick();
+
+  env.windowStub.postMessage({
+    type: 'search',
+    data: buildSearchResponse([buildEntry({ website: 'https://www.instagram.com/loja' })]),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+
+  const lead = storage['lead:place:ChIJ_place_1'];
+  assert.strictEqual(lead.email, 'contato@loja.com', 'pré-condição: o enriquecimento rodou de verdade');
+  assert.strictEqual(lead.opportunity_score, 80, 'o score não pode mudar por causa do enriquecimento');
+});
+
 test('sem lista de resultados na página, o usuário é avisado', async () => {
   // Aba num lugar específico do Maps, não numa busca: não há [role="feed"].
   const { env } = loadContentScripts();
@@ -180,6 +225,119 @@ test('com a lista presente, a extração fica ativa até ser parada', async () =
   button.dispatch('click');
   await tick();
   assert.strictEqual(button.innerText, 'Iniciar extração');
+});
+
+function findStatusLabel(env) {
+  const panel = env.body.children.find((child) => child.className.includes('extension_gms_page'));
+  return panel.children.find((child) => child.className === 'extension_gms_progress');
+}
+
+test('mensagem de conclusão: fim da lista', async () => {
+  const { env } = loadContentScripts();
+  await tick();
+
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000;
+  // '.HlvSq' já presente desde a primeira rolagem: dispara 'end_of_list' cedo.
+  env.documentStub.querySelector = (selector) => {
+    if (selector === '[role="feed"]') return feed;
+    if (selector === '.HlvSq') return env.documentStub.createElement('div');
+    return null;
+  };
+
+  env.body.find('extension_gms_start_btn').dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 3200));
+
+  assert.strictEqual(env.body.find('extension_gms_start_btn').innerText, 'Iniciar extração');
+  assert.match(findStatusLabel(env).innerText, /^Concluído — 0 leads nesta busca \(fim dos resultados\)$/);
+});
+
+test('mensagem de conclusão: trava de rolagem (lista para de crescer)', async () => {
+  // Delays mínimos: sem isso, 21 iterações no ritmo real (1-3s cada) tornariam
+  // este teste lento demais para rodar toda vez.
+  const storage = { settings: { minScrollDelayMs: 1, maxScrollDelayMs: 2 } };
+  const { env } = loadContentScripts({ storage });
+  await tick();
+
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000; // nunca muda: a lista "para de crescer" desde a 1ª rolagem
+  env.documentStub.querySelector = (selector) => (selector === '[role="feed"]' ? feed : null);
+
+  env.body.find('extension_gms_start_btn').dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  assert.strictEqual(env.body.find('extension_gms_start_btn').innerText, 'Iniciar extração');
+  assert.match(findStatusLabel(env).innerText, /^Parado — 0 leads nesta busca \(lista não cresceu mais\)$/);
+});
+
+test('mensagem de conclusão: interrompido pelo usuário', async () => {
+  const { env } = loadContentScripts();
+  await tick();
+
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000;
+  env.documentStub.querySelector = (selector) => (selector === '[role="feed"]' ? feed : null);
+
+  const button = env.body.find('extension_gms_start_btn');
+  button.dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 200)); // entra no loop, mas não estabiliza nem termina
+  button.dispatch('click'); // usuário clica em "Parar"
+
+  await new Promise((resolve) => setTimeout(resolve, 3200)); // aguarda o loop notar e sair
+
+  assert.match(findStatusLabel(env).innerText, /^Interrompido — 0 leads nesta busca$/);
+});
+
+function findEnrichProgressLabel(env) {
+  const panel = env.body.children.find((child) => child.className.includes('extension_gms_page'));
+  return panel.children.find((child) => child.className.includes('extension_gms_enrich_progress'));
+}
+
+test('mensagem de rolagem aparece assim que a extração começa', async () => {
+  const { env } = loadContentScripts();
+  await tick();
+
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000;
+  env.documentStub.querySelector = (selector) => (selector === '[role="feed"]' ? feed : null);
+
+  env.body.find('extension_gms_start_btn').dispatch('click');
+  await tick();
+
+  assert.strictEqual(findStatusLabel(env).innerText, 'Rolando... 0 novos leads nesta busca');
+});
+
+test('progresso de enriquecimento e status da sessão não se sobrescrevem', async () => {
+  const storage = {};
+  let releaseEnrichment;
+  const pending = new Promise((resolve) => {
+    releaseEnrichment = resolve;
+  });
+  const { env } = loadContentScripts({ storage, sendMessage: async () => pending });
+  await tick();
+
+  // Extração ativa: é quando handleSearchPayload atualiza o status da sessão.
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000;
+  env.documentStub.querySelector = (selector) => (selector === '[role="feed"]' ? feed : null);
+  env.body.find('extension_gms_start_btn').dispatch('click');
+  await tick();
+
+  // O lead da fixture tem website -> entra na fila de enriquecimento, que
+  // dispara setProgress (elemento próprio) enquanto o enriquecimento não
+  // termina (mock nunca resolve `pending` até releaseEnrichment ser chamado).
+  env.windowStub.postMessage({ type: 'search', data: buildSearchResponse([buildEntry()]) });
+  await tick();
+
+  assert.match(findStatusLabel(env).innerText, /novos leads nesta busca/, 'status da sessão não pode ter sido apagado');
+  assert.match(findEnrichProgressLabel(env).innerText, /Enriquecendo/, 'progresso da fila precisa estar no elemento próprio');
+
+  releaseEnrichment({ email: [], instagram: [] });
 });
 
 test('limpar a base exige dois cliques', async () => {

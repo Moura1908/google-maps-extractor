@@ -86,6 +86,8 @@ function parseFeedEntry(feedItem) {
   // Sem nome não é um estabelecimento — é linha de controle do próprio feed.
   if (!name) return null;
 
+  const workingHours = parseWorkingHours(entry);
+
   return {
     name,
     phone: pick(entry, FIELD_PATHS.phone),
@@ -99,7 +101,11 @@ function parseFeedEntry(feedItem) {
     averageRating: pick(entry, FIELD_PATHS.averageRating),
     latitude: pick(entry, FIELD_PATHS.latitude),
     longitude: pick(entry, FIELD_PATHS.longitude),
-    ...parseWorkingHours(entry),
+    // Sinal explícito para src/shared/opportunity.js — as colunas de horário em
+    // si têm nomes dinâmicos (`0_segunda-feira`), não dá para checar "tem
+    // horário" varrendo chaves arbitrárias no objeto do lead.
+    has_working_hours: Object.keys(workingHours).length > 0,
+    ...workingHours,
   };
 }
 

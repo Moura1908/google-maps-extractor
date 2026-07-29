@@ -16,8 +16,9 @@ Não há build step: a pasta é a extensão.
 
 1. Busque no Google Maps (`restaurantes em Brasília`, `clínicas odontológicas`, …)
 2. No painel branco da barra lateral, clique em **Iniciar extração**
-3. A extensão rola a lista sozinha até o fim dos resultados
-4. **Ver e exportar** abre o dashboard, com filtros e download em CSV/XLSX
+3. A extensão rola a lista sozinha até o fim dos resultados, mostrando "Rolando... N novos leads
+   nesta busca" — e, ao parar, o motivo: fim da lista, lista que parou de crescer, ou interrupção manual
+4. **Ver e exportar** abre o dashboard, já ordenado por oportunidade, com filtros e download em CSV/XLSX
 
 O painel tem dois interruptores:
 
@@ -37,7 +38,7 @@ src/page/interceptor.js   roda no contexto da página; envolve XHR e fetch,
                           e repassa o corpo de /search via postMessage
         ↓
 src/content/parser.js     lê o JSON posicional do Google (índices mágicos)
-src/content/ingest.js     deduplica, carimba busca/data, normaliza telefone
+src/content/ingest.js     deduplica, carimba busca/data, telefone, oportunidade
 src/content/scraper.js    rola a lista e enfileira o enriquecimento
         ↓
 src/background/enrich.js  busca e-mail e redes sociais no site do lead
@@ -65,7 +66,34 @@ do payload-map.md** com a data.
 
 ## Dados extraídos
 
-Nome · Telefone · **Telefone em E.164** · **Tipo (celular/fixo)** · E-mail · Website · Endereço · Categoria · Nota · Nº de avaliações · Instagram · Facebook · LinkedIn · Twitter/X · YouTube · Place ID · CID · Latitude/Longitude · Horário de funcionamento · Termo buscado · Data da extração
+**Oportunidade (score + motivos)** · Nome · Telefone · **Telefone em E.164** · **Tipo (celular/fixo)** · E-mail · Website · Endereço · Categoria · Nota · Nº de avaliações · Instagram · Facebook · LinkedIn · Twitter/X · YouTube · Place ID · CID · Latitude/Longitude · Horário de funcionamento · Termo buscado · Data da extração
+
+### Score de oportunidade
+
+`src/shared/opportunity.js` transforma a lista em fila de trabalho: cada lead ganha
+`opportunity_score` (0–100) e `opportunity_reasons` (o rascunho do argumento de venda, tipo
+`"sem site · 4 avaliações · perfil incompleto"`). O dashboard já abre ordenado por esse score,
+do mais promissor para o menos.
+
+| Sinal | Peso | Por quê |
+|---|---|---|
+| Sem site de verdade (vazio ou é só um link de Instagram/Facebook) | +40 | Alvo direto para site/landing |
+| Nota < 4,0 com 10+ avaliações | +25 | Dor de reputação confirmada (não é 1 review isolado) |
+| Menos de 10 avaliações | +20 | Perfil negligenciado |
+| Sem horário cadastrado | +15 | Perfil incompleto |
+| O "website" cadastrado é, na verdade, um perfil social | +15 | Já investe em presença, falta base própria |
+| Telefone é celular | +10 | Dono provavelmente atende o próprio WhatsApp |
+| Sem telefone algum | −50 | Sem o canal principal, o lead é pouco acionável |
+
+Calculado já na ingestão (antes do enriquecimento) e recalculado depois que e-mail/redes sociais
+chegam — hoje nenhuma regra depende desses campos, mas o recálculo fica pronto para quando
+alguma depender.
+
+## Campanhas (separar buscas diferentes)
+
+Todo lead grava a busca de origem (`search_query`). No dashboard, o seletor **Campanha** filtra
+por uma busca específica — e a exportação respeita esse filtro, então dá para baixar só os leads
+de uma campanha. No popup, **Últimas buscas** mostra as 5 mais recentes com a contagem de cada uma.
 
 ### Telefone
 
@@ -87,7 +115,7 @@ Para zerar: **Limpar base**, no painel ou no dashboard (exige dois cliques).
 npm test    # node --test test/*.test.js
 ```
 
-82 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, a sanitização de exportação, a guarda contra SSRF, o canário de esquema, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+122 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, o score de oportunidade, o agrupamento por campanha, as mensagens de status da sessão, a sanitização de exportação, a guarda contra SSRF, o canário de esquema, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
 
 `npm install` instala um hook de pre-commit que roda `npm test` antes de cada commit (fonte em `scripts/git-hooks/pre-commit`; `.git/hooks/` não é versionado, por isso a instalação é automática em vez de manual). Para um commit só de documentação, pule com `git commit --no-verify`.
 

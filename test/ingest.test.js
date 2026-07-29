@@ -64,3 +64,21 @@ test('o país do payload segue o parâmetro, não um default fixo', () => {
   const [lead] = ingestSearchPayload(body, { knownKeys: new Set(), country: 'PT' });
   assert.strictEqual(lead.phone_e164, '+351912345678');
 });
+
+test('o score de oportunidade já sai calculado na ingestão', () => {
+  // Fixture padrão: tem site e 128 avaliações (não dispara nenhum dos dois),
+  // mas não tem horário cadastrado (+15) e o telefone é celular (+10).
+  const body = buildSearchResponse([buildEntry()]);
+  const [lead] = ingestSearchPayload(body, { knownKeys: new Set() });
+
+  assert.strictEqual(lead.opportunity_score, 25);
+  assert.strictEqual(lead.opportunity_reasons, 'perfil incompleto · celular');
+});
+
+test('sem site nem telefone, o score de oportunidade reflete os dois na ingestão', () => {
+  const body = buildSearchResponse([buildEntry({ website: null, phone: null })]);
+  const [lead] = ingestSearchPayload(body, { knownKeys: new Set() });
+
+  assert.ok(lead.opportunity_reasons.includes('sem site'));
+  assert.ok(lead.opportunity_reasons.includes('sem telefone'));
+});

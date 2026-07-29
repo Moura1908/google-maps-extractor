@@ -17,6 +17,7 @@ const OverlayUI = (() => {
   let panel = null;
   let statusLabel = null;
   let progressLabel = null;
+  let enrichProgressLabel = null;
   let warningLabel = null;
   let startButton = null;
   let exportButton = null;
@@ -58,9 +59,21 @@ const OverlayUI = (() => {
     statusLabel.id = 'extension_gms_leads_info';
     statusLabel.innerText = 'Leads: 0';
 
+    // Status da sessão de coleta atual: "Rolando...", "Concluído — N leads
+    // (fim dos resultados)", "Abra uma busca no Maps"... (setMessage).
     progressLabel = document.createElement('p');
     progressLabel.className = 'extension_gms_progress';
     progressLabel.innerText = '';
+
+    // Elemento PRÓPRIO para o progresso da fila de enriquecimento — se
+    // dividisse o mesmo elemento que o status da sessão (setMessage), um
+    // tick de "Enriquecendo X/Y" apagaria a mensagem de conclusão da rolagem
+    // um segundo depois dela aparecer. Herda o estilo de `.extension_gms_progress`
+    // (mesma aparência), mas com uma segunda classe para não colidir em buscas
+    // por `className` exato.
+    enrichProgressLabel = document.createElement('p');
+    enrichProgressLabel.className = 'extension_gms_progress extension_gms_enrich_progress';
+    enrichProgressLabel.innerText = '';
 
     // Elemento próprio, separado do progresso: um índice do payload quebrado
     // não pode ser mostrado por um segundo e sumir no próximo tick da fila.
@@ -107,7 +120,16 @@ const OverlayUI = (() => {
       )
     );
 
-    panel.append(statusLabel, warningLabel, progressLabel, startButton, exportButton, clearButton, options);
+    panel.append(
+      statusLabel,
+      warningLabel,
+      progressLabel,
+      enrichProgressLabel,
+      startButton,
+      exportButton,
+      clearButton,
+      options
+    );
     return panel;
   }
 
@@ -147,11 +169,15 @@ const OverlayUI = (() => {
     setCount(total) {
       if (statusLabel) statusLabel.innerText = `Leads: ${total}`;
     },
+    /** Progresso da fila de enriquecimento — não é o status da sessão de coleta. */
     setProgress({ completed, total }) {
-      if (!progressLabel) return;
-      progressLabel.innerText = total > completed ? `Enriquecendo ${completed}/${total}` : '';
+      if (!enrichProgressLabel) return;
+      enrichProgressLabel.innerText = total > completed ? `Enriquecendo ${completed}/${total}` : '';
     },
-    /** Recado curto para o usuário (erro ou fim de coleta). */
+    /**
+     * Status da sessão de coleta atual: "Rolando... N novos", a mensagem de
+     * conclusão com o motivo da parada, ou um erro ("Abra uma busca...").
+     */
     setMessage(text) {
       if (!progressLabel) return;
       progressLabel.innerText = text;

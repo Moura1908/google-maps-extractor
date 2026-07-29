@@ -1,6 +1,6 @@
 # Plano de Evolução
 
-> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0 e 1 concluídos**
+> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0, 1 e 2 concluídos**
 >
 > Este plano existe para que qualquer pessoa — inclusive você daqui a oito meses — consiga
 > retomar o projeto sabendo **o que falta, por que importa e em que ordem fazer**, sem
@@ -128,7 +128,10 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 | **Canário de esquema do parser** | `assessSchemaHealth()` avisa em vermelho no painel quando o Google reordena o payload, em vez de exportar telefone vazio em silêncio |
 | **`docs/payload-map.md` versionado** | Tabela de índices com data de verificação + procedimento de remapeamento — linkado no README e no cabeçalho de `parser.js` |
 | **Hook de pre-commit** | `npm install` instala automaticamente (fonte versionada em `scripts/git-hooks/`) — testes rodam antes de cada commit |
-| 82 testes (`npm test`) | +14 desde o Bloco 0: canário de esquema (11) + 3 casos de ponta a ponta |
+| **Score de oportunidade** | `opportunity_score` + `opportunity_reasons` em todo lead; dashboard abre ordenado por ele. Redesenhado durante a implementação: ver nota no Bloco 2 |
+| **Campanhas separáveis** | Filtro e export por `search_query` no dashboard; últimas buscas com contagem no popup |
+| **Status de sessão e conclusão** | "Rolando... N novos", e ao parar: motivo real (fim da lista · trava · interrompido) |
+| 122 testes (`npm test`) | +40 desde o Bloco 1: oportunidade (18), campanhas (7), status de sessão (6), + casos de ponta a ponta |
 
 ### Notas do estado atual
 
@@ -136,18 +139,18 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 |---|---|---|
 | Arquitetura | 8,0 | Limpa; presa a índices posicionais e escopo global — inerente ao domínio |
 | Código | 8,5 | Legível, comentado no *porquê*, sem código morto |
-| **Organização** | **8,5** | `payload-map.md` e hook de teste resolvidos (Bloco 1). Falta só `screenshot/` desatualizado (D14) |
-| UX | 6,5 | Não mostra quanto falta, não separa campanhas, sem histórico |
+| Organização | 8,5 | `payload-map.md` e hook de teste resolvidos (Bloco 1). Falta só `screenshot/` desatualizado (D14) |
+| **UX** | **8,0** | Mostra progresso, motivo de parada e separa campanhas (Bloco 2). Falta o modo campanha em si (Bloco 3) |
 | UI | 6,5 | Funcional e consistente; não memorável — aceitável para ferramenta de trabalho |
-| **Segurança** | **8,5** | **Bloco 0 concluído**: CSV injection sanitizado, SSRF bloqueado, handler órfão removido. Falta o que depende de gatilho futuro (§4.3 lista de supressão) |
+| Segurança | 8,5 | **Bloco 0 concluído**: CSV injection sanitizado, SSRF bloqueado, handler órfão removido. Falta o que depende de gatilho futuro (§4.3 lista de supressão) |
 | Performance | 7,0 | Concorrência resolvida; falta cache e parada antecipada |
 | Escalabilidade | 6,0 | Sólida até ~20k leads; degrada por carregar tudo em memória |
-| **Documentação** | **8,5** | README honesto + `payload-map.md` versionado transformam arqueologia em consulta |
-| Produto | 6,0 | Entrega matéria-prima, não decisão; teto de ~120 resultados por busca |
-| Inovação | 7,5 | A interceptação de API interna é boa; o resto é commodity |
-| **Qualidade geral** | **7,8** | Segurança e o ativo do parser protegidos; teto de produto e cobertura ainda abertos (Blocos 2–3) |
+| Documentação | 8,5 | README honesto + `payload-map.md` versionado transformam arqueologia em consulta |
+| **Produto** | **7,5** | A lista virou fila priorizada com argumento de venda pronto (Bloco 2). Ainda falta quebrar o teto de ~120 resultados por busca (Bloco 3) |
+| Inovação | 7,5 | A interceptação de API interna é boa; o score de oportunidade é o segundo diferencial real |
+| **Qualidade geral** | **8,2** | Segurança e ativo do parser protegidos, produto entrega decisão em vez de lista. Falta só quebrar o teto de cobertura (Bloco 3) |
 
-*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração, antes do Bloco 0: 7,0 · pós-Bloco 0: 7,5.)*
+*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração: 7,0 · pós-Bloco 0: 7,5 · pós-Bloco 1: 7,8.)*
 
 ---
 
@@ -162,14 +165,14 @@ Achados confirmados no código, com localização. Cada um vira um item do roadm
 | ~~D3~~ | ~~Handler `access` órfão = proxy de fetch arbitrário~~ | `src/background/router.js` | ✅ Resolvido (Bloco 0) |
 | ~~D4~~ | ~~Quebra de índice do payload é silenciosa~~ | `src/content/schema-health.js` | ✅ Resolvido (Bloco 1) |
 | ~~D5~~ | ~~Mapa de índices só existe em comentários~~ | `docs/payload-map.md` | ✅ Resolvido (Bloco 1) |
-| D6 | Nenhuma qualificação de lead | — (ausência) | 🟠 Alta |
+| ~~D6~~ | ~~Nenhuma qualificação de lead~~ | `src/shared/opportunity.js` | ✅ Resolvido (Bloco 2) |
 | D7 | Teto de ~120 resultados por busca | Limitação do Google Maps | 🟠 Alta |
-| D8 | Base acumula tudo sem separar campanhas | `js/dashboard.js` | 🟡 Média |
+| ~~D8~~ | ~~Base acumula tudo sem separar campanhas~~ | `src/shared/campaigns.js` | ✅ Resolvido (Bloco 2) |
 | D9 | Enriquecimento sem cache; deep search sempre roda | `src/background/enrich.js:extractContacts` | 🟡 Média |
 | D10 | `allLeads()` carrega a base inteira em memória | `src/shared/storage.js` | 🟡 Média (futura) |
 | D11 | Sem lista de supressão (LGPD) | — (ausência) | 🟡 Média |
 | ~~D12~~ | ~~Sem hook rodando os testes~~ | `scripts/git-hooks/pre-commit` | ✅ Resolvido (Bloco 1) |
-| D13 | Coleta não informa progresso nem conclusão | `src/content/scraper.js` | 🟢 Baixa |
+| ~~D13~~ | ~~Coleta não informa progresso nem conclusão~~ | `src/content/session-status.js` | ✅ Resolvido (Bloco 2) |
 | D14 | `screenshot/` (2,5 MB) mostra a UI antiga | `screenshot/` | 🟢 Baixa |
 
 ---
@@ -393,8 +396,30 @@ um campo novo e adicioná-lo a `FIELD_PATHS`.
 
 ### Bloco 2 — De lista para decisão
 
-> **Total: ~6h.** O maior ganho de valor por hora investida do projeto inteiro. Transforma
-> "500 nomes" em "37 para ligar hoje, com o argumento pronto".
+> ✅ **Concluído em 2026-07-29.** Nota de produto ainda não subiu formalmente (falta validar em
+> uso real), mas a ferramenta agora ordena por oportunidade em vez de por ordem de chegada.
+> +18 testes (122 no total): `test/opportunity.test.js` (18), `test/campaigns.test.js` (7,
+> contado no Bloco 2.2), `test/session-status.test.js` (6, Bloco 2.3) e mais casos de ponta a
+> ponta em `test/contentscript.test.js`.
+>
+> **Duas correções de design descobertas ao implementar**, registradas porque mudam o que o
+> rascunho original descrevia:
+>
+> - **2.1 — a regra "Instagram sem site" era estruturalmente inalcançável.** O enriquecimento só
+>   descobre Instagram/Facebook fazendo `fetch` do valor de `lead.website` — ou seja,
+>   `lead.instagram` só existe quando `lead.website` já era não-vazio. A condição original
+>   (`tem instagram && !website`) seria **sempre falsa**, capturada pelo teste de ponta a ponta
+>   antes de ir para produção. Redesenhada como duas regras: `no_real_website` (site vazio OU é
+>   um link de rede social — dispara sozinha) e `website_is_social_profile` (bônus quando o
+>   "site" cadastrado no Maps é, na verdade, um perfil do Instagram/Facebook — padrão comum de
+>   negócio pequeno). As duas são computáveis direto do payload, sem esperar o enriquecimento.
+> - **2.3 — `setProgress` (fila de enriquecimento) e `setMessage` (status da sessão) disputavam
+>   o mesmo elemento do painel**, igual ao problema do Bloco 1 com o aviso de esquema. Um tick de
+>   "Enriquecendo X/Y" apagaria "Rolando... N novos" um instante depois. Resolvido com um segundo
+>   elemento (`enrichProgressLabel`) dedicado só ao progresso da fila.
+
+<details>
+<summary>Detalhamento original (mantido para histórico)</summary>
 
 ---
 
@@ -459,6 +484,8 @@ contagem de resultados carregados durante a rolagem; mensagem explícita ao term
 **Esforço** 1h · **Risco** Nulo
 
 ---
+
+</details>
 
 ### Bloco 3 — Quebrar o teto de cobertura
 
@@ -628,6 +655,8 @@ Registradas para não serem re-litigadas a cada sessão.
 | **Nunca chutar índice do payload** | Um índice errado produz dado plausível e falso — pior que campo vazio |
 | **Sanitizar na exportação, nunca no dado armazenado** | `accessorDownload` neutraliza fórmula só no CSV/XLSX; a tela e a base local mantêm o valor original. Sanitizar na entrada destruiria dado legítimo (ex. nome de empresa começando com número negativo) |
 | **Bloquear por IP/host literal, não por resolução de DNS** | `isPublicHttpUrl` barra loopback e RFC 1918 escritos diretamente na URL. Não resolve DNS rebinding — o custo de um proxy próprio não se justifica pelo risco residual numa ferramenta de usuário único |
+| **Score de oportunidade computável sem esperar o enriquecimento** | `no_real_website`/`website_is_social_profile` leem só `lead.website` do payload cru — não dependem de `lead.instagram` (que só existe depois do fetch). Uma regra que só pode disparar depois de um evento que ela mesma impede de acontecer é regra morta; o teste de ponta a ponta pegou isso antes de ir para produção |
+| **Cada linha do painel tem seu próprio elemento de texto** | Contagem vitalícia, aviso de esquema, status de sessão e progresso de enriquecimento nunca dividem o mesmo nó — dividir significa um dos quatro apagar o outro no próximo tick |
 
 ---
 
@@ -696,8 +725,8 @@ Sem baseline, nenhuma otimização futura é justificável.
 ```
 Bloco 0  (1h15)  ✅ CONCLUÍDO 2026-07-29 — segurança 4,5 → 8,5
 Bloco 1  (2h30)  ✅ CONCLUÍDO 2026-07-29 — canário de esquema, payload-map.md, pre-commit
-Bloco 2  (7h)    ──►  próximo: a ferramenta passa a entregar decisão, não lista
-Bloco 3  (8h)    ──►  cobertura real 10–30x
+Bloco 2  (7h)    ✅ CONCLUÍDO 2026-07-29 — score de oportunidade, campanhas, status de sessão
+Bloco 3  (8h)    ──►  próximo: cobertura real 10–30x (modo campanha)
 Bloco 4  (por gatilho, medindo antes)
 Bloco 5  (quando os anteriores estiverem estáveis)
 ```

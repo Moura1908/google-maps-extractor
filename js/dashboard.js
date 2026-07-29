@@ -9,6 +9,8 @@
 
 /** Colunas conhecidas, na ordem que importa para prospecção. */
 const COLUMN_ORDER = [
+  'opportunity_score',
+  'opportunity_reasons',
   'name',
   'phone',
   'phone_e164',
@@ -47,6 +49,8 @@ const HIDDEN_BY_DEFAULT = new Set([
 ]);
 
 const COLUMN_LABELS = {
+  opportunity_score: 'Oportunidade',
+  opportunity_reasons: 'Motivos',
   name: 'Nome',
   phone: 'Telefone',
   phone_e164: 'Telefone E.164',
@@ -71,6 +75,9 @@ const table = new Tabulator('#example-table', {
   height: '70vh',
   pagination: 'local',
   paginationSize: 100,
+  // Oportunidade mais alta primeiro: é essa a fila de trabalho, não a ordem
+  // de chegada da coleta.
+  initialSort: [{ column: 'opportunity_score', dir: 'desc' }],
   // setColumns/setData só são seguros depois que a tabela existe de fato.
   tableBuilt: () => loadData(),
 });
@@ -103,14 +110,24 @@ function orderFields(foundFields) {
   return [...known, ...extra];
 }
 
+const WIDE_COLUMNS = new Set(['address', 'website', 'opportunity_reasons']);
+
+function columnWidth(field) {
+  if (field === 'opportunity_score') return 110;
+  if (WIDE_COLUMNS.has(field)) return 260;
+  return 180;
+}
+
 function buildColumns(fields) {
   return fields.map((field) => ({
     title: label(field),
     field,
-    width: field === 'address' || field === 'website' ? 260 : 180,
+    width: columnWidth(field),
     resizable: true,
     headerFilter: 'input',
     visible: !HIDDEN_BY_DEFAULT.has(field),
+    // Sem isso o Tabulator ordena "10" antes de "9" (comparação de string).
+    sorter: field === 'opportunity_score' ? 'number' : undefined,
     // Neutraliza fórmula (CSV/XLSX Injection) só na exportação — a tela
     // continua mostrando o valor original. O nome do estabelecimento vem
     // do Google Maps, ou seja, é escrito por terceiro.
@@ -144,6 +161,7 @@ function buildColumnToggles(fields) {
 // --- filtros ---------------------------------------------------------------
 
 const filterControls = {
+  query: () => document.getElementById('filter-query').value,
   email: () => document.getElementById('filter-email').checked,
   mobile: () => document.getElementById('filter-mobile').checked,
   phone: () => document.getElementById('filter-phone').checked,
@@ -153,6 +171,9 @@ const filterControls = {
 };
 
 function matchesQuickFilters(row) {
+  const query = filterControls.query();
+  if (query && (row.search_query || '') !== query) return false;
+
   if (filterControls.email() && !row.email) return false;
   if (filterControls.mobile() && row.phone_type !== 'mobile') return false;
   if (filterControls.phone() && !row.phone) return false;
@@ -167,12 +188,42 @@ function matchesQuickFilters(row) {
   return true;
 }
 
+/**
+ * Popula o <select> de campanha com as buscas presentes na base, mais
+ * recente primeiro, cada uma com a contagem de leads. Preserva a seleção
+ * atual quando ela ainda existir — `loadData()` roda de novo depois de
+ * dedupe/limpeza, e trocar a campanha selecionada sozinho seria confuso.
+ */
+function populateQueryFilter(leads) {
+  const select = document.getElementById('filter-query');
+  const previousValue = select.value;
+  const groups = summarizeByQuery(leads);
+
+  select.innerHTML = '';
+  const allOption = document.createElement('option');
+  allOption.value = '';
+  allOption.textContent = `Todas as buscas (${leads.length})`;
+  select.appendChild(allOption);
+
+  for (const group of groups) {
+    const option = document.createElement('option');
+    option.value = group.query;
+    option.textContent = group.query ? `${group.query} (${group.count})` : `(sem busca registrada) (${group.count})`;
+    select.appendChild(option);
+  }
+
+  if ([...select.options].some((option) => option.value === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
 function applyFilters() {
   table.setFilter(matchesQuickFilters);
   updateCounter();
 }
 
 function resetFilters() {
+  document.getElementById('filter-query').value = '';
   ['filter-email', 'filter-mobile', 'filter-phone', 'filter-no-website'].forEach((id) => {
     document.getElementById(id).checked = false;
   });
@@ -208,6 +259,7 @@ async function loadData() {
   const ordered = orderFields(fields);
   table.setColumns(buildColumns(ordered));
   buildColumnToggles(ordered);
+  populateQueryFilter(allLeads);
   await table.setData(rows);
   applyFilters();
 }
@@ -266,6 +318,7 @@ document.getElementById('clear-base').addEventListener('click', async (event) =>
   await loadData();
 });
 
+document.getElementById('filter-query').addEventListener('change', applyFilters);
 ['filter-email', 'filter-mobile', 'filter-phone', 'filter-no-website'].forEach((id) => {
   document.getElementById(id).addEventListener('change', applyFilters);
 });
