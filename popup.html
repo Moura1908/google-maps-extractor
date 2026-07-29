@@ -31,11 +31,43 @@
             </div>
 
             <div id="recentqueries" style="padding-top: 16px; margin-top: 16px; border-top: 1px solid #e5e5e5;"></div>
+
+            <div id="campaignsection" style="padding-top: 16px; margin-top: 16px; border-top: 1px solid #e5e5e5;">
+                <h3 style="margin: 0 0 8px; font-size: 14px;">Modo campanha</h3>
+                <p style="margin: 0 0 12px; font-size: 12px; color: #666;">
+                    Uma busca só traz ~120 resultados. Uma campanha roda várias buscas em sequência —
+                    o mesmo termo em cada região listada abaixo — e acumula tudo na mesma base, sem duplicar.
+                </p>
+
+                <div id="campaignstatus" style="display: none; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                    <p id="campaignprogresstext" style="margin: 0; font-size: 13px; font-weight: 600;"></p>
+                    <button id="cancelcampaignbtn"
+                        style="height: 32px; padding: 0 12px; border-radius: 0.375rem; border: 1px solid #ccc; background: #fff; cursor: pointer; align-self: flex-start;">
+                        Cancelar campanha
+                    </button>
+                </div>
+
+                <div id="campaignform" style="display: flex; flex-direction: column; gap: 8px;">
+                    <textarea id="campaignregions" rows="4" placeholder="Uma região por linha, ex.:&#10;Asa Sul&#10;Taguatinga&#10;Águas Claras"
+                        style="width: 300px; border-radius: 0.375rem; border: 1px #ccc solid; padding: 8px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+                    <label style="font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px;">
+                        Pausa entre buscas (segundos):
+                        <input type="number" id="campaignpause" value="30" min="10" step="5" style="width: 60px; height: 24px; border-radius: 0.375rem; border: 1px #ccc solid; padding: 0 6px;" />
+                    </label>
+                    <button id="startcampaignbtn"
+                        style="width: 200px; height: 40px; background-color: darkgreen; color: #fff; border: none; border-radius: 0.375rem; cursor: pointer;">
+                        Iniciar campanha
+                    </button>
+                    <p id="campaignerror" style="margin: 0; font-size: 12px; color: #c0392b;"></p>
+                </div>
+            </div>
         </div>
     </div>
 </body>
 <script src="src/shared/storage.js"></script>
 <script src="src/shared/campaigns.js"></script>
+<script src="src/shared/campaign.js"></script>
+<script src="src/shared/campaign-grid.js"></script>
 <script src="js/popup.js"></script>
 
 </html>

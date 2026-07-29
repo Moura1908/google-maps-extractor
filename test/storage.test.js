@@ -126,3 +126,28 @@ test('preferências partem do default e aceitam patch parcial', async () => {
   assert.strictEqual(updated.deepSearch, false);
   assert.strictEqual(updated.concurrency, 5, 'patch não pode zerar o resto');
 });
+
+test('getCampaign devolve null quando não há campanha', async () => {
+  assert.strictEqual(await LeadStore.getCampaign(), null);
+});
+
+test('saveCampaign persiste e getCampaign lê de volta', async () => {
+  const campaign = { id: 'campaign_x', currentIndex: 0, items: [{ query: 'a', status: 'pending' }] };
+  await LeadStore.saveCampaign(campaign);
+
+  assert.deepStrictEqual(await LeadStore.getCampaign(), campaign);
+  assert.ok('campaign' in store, 'precisa estar numa chave própria, fora do namespace lead:');
+});
+
+test('clearCampaign remove a campanha sem afetar leads ou preferências', async () => {
+  LeadStore.save({ key: 'place:1', name: 'Alvo' });
+  await LeadStore.flushNow();
+  await LeadStore.saveSettings({ concurrency: 9 });
+  await LeadStore.saveCampaign({ id: 'campaign_x', currentIndex: 0, items: [] });
+
+  await LeadStore.clearCampaign();
+
+  assert.strictEqual(await LeadStore.getCampaign(), null);
+  assert.strictEqual((await LeadStore.allLeads()).length, 1, 'leads não podem ser afetados');
+  assert.strictEqual((await LeadStore.getSettings()).concurrency, 9, 'preferências não podem ser afetadas');
+});

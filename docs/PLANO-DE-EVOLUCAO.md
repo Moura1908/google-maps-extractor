@@ -1,6 +1,6 @@
 # Plano de Evolução
 
-> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0, 1 e 2 concluídos**
+> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0, 1 e 2 concluídos · Bloco 3 implementado, validação manual pendente**
 >
 > Este plano existe para que qualquer pessoa — inclusive você daqui a oito meses — consiga
 > retomar o projeto sabendo **o que falta, por que importa e em que ordem fazer**, sem
@@ -131,7 +131,8 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 | **Score de oportunidade** | `opportunity_score` + `opportunity_reasons` em todo lead; dashboard abre ordenado por ele. Redesenhado durante a implementação: ver nota no Bloco 2 |
 | **Campanhas separáveis** | Filtro e export por `search_query` no dashboard; últimas buscas com contagem no popup |
 | **Status de sessão e conclusão** | "Rolando... N novos", e ao parar: motivo real (fim da lista · trava · interrompido) |
-| 122 testes (`npm test`) | +40 desde o Bloco 1: oportunidade (18), campanhas (7), status de sessão (6), + casos de ponta a ponta |
+| **Modo campanha (grade de buscas)** | Gera várias buscas (por região), navega entre elas sozinha, dedupe global já cobre a agregação. **Código completo, execução real em browser ainda não validada** |
+| 165 testes (`npm test`) | +83 desde o Bloco 1: oportunidade (18), campanhas (7), status de sessão (6), grade/campanha/runner (39), + casos de ponta a ponta |
 
 ### Notas do estado atual
 
@@ -140,17 +141,17 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 | Arquitetura | 8,0 | Limpa; presa a índices posicionais e escopo global — inerente ao domínio |
 | Código | 8,5 | Legível, comentado no *porquê*, sem código morto |
 | Organização | 8,5 | `payload-map.md` e hook de teste resolvidos (Bloco 1). Falta só `screenshot/` desatualizado (D14) |
-| **UX** | **8,0** | Mostra progresso, motivo de parada e separa campanhas (Bloco 2). Falta o modo campanha em si (Bloco 3) |
+| UX | 8,0 | Mostra progresso, motivo de parada e separa campanhas (Bloco 2) |
 | UI | 6,5 | Funcional e consistente; não memorável — aceitável para ferramenta de trabalho |
 | Segurança | 8,5 | **Bloco 0 concluído**: CSV injection sanitizado, SSRF bloqueado, handler órfão removido. Falta o que depende de gatilho futuro (§4.3 lista de supressão) |
 | Performance | 7,0 | Concorrência resolvida; falta cache e parada antecipada |
 | Escalabilidade | 6,0 | Sólida até ~20k leads; degrada por carregar tudo em memória |
 | Documentação | 8,5 | README honesto + `payload-map.md` versionado transformam arqueologia em consulta |
-| **Produto** | **7,5** | A lista virou fila priorizada com argumento de venda pronto (Bloco 2). Ainda falta quebrar o teto de ~120 resultados por busca (Bloco 3) |
+| **Produto** | **8,0** (⚠️ **condicional**) | A lista virou fila priorizada (Bloco 2) e o teto de ~120/busca tem solução em código (Bloco 3) — mas o ganho de cobertura só é real depois de validado num browser de verdade |
 | Inovação | 7,5 | A interceptação de API interna é boa; o score de oportunidade é o segundo diferencial real |
-| **Qualidade geral** | **8,2** | Segurança e ativo do parser protegidos, produto entrega decisão em vez de lista. Falta só quebrar o teto de cobertura (Bloco 3) |
+| **Qualidade geral** | **8,3** | Segurança e ativo do parser protegidos, produto entrega decisão e (potencialmente) cobertura 10-30x maior. Falta validar o Bloco 3 em uso real antes de contar esse ganho como entregue |
 
-*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração: 7,0 · pós-Bloco 0: 7,5 · pós-Bloco 1: 7,8.)*
+*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração: 7,0 · pós-Bloco 0: 7,5 · pós-Bloco 1: 7,8 · pós-Bloco 2: 8,2.)*
 
 ---
 
@@ -166,7 +167,7 @@ Achados confirmados no código, com localização. Cada um vira um item do roadm
 | ~~D4~~ | ~~Quebra de índice do payload é silenciosa~~ | `src/content/schema-health.js` | ✅ Resolvido (Bloco 1) |
 | ~~D5~~ | ~~Mapa de índices só existe em comentários~~ | `docs/payload-map.md` | ✅ Resolvido (Bloco 1) |
 | ~~D6~~ | ~~Nenhuma qualificação de lead~~ | `src/shared/opportunity.js` | ✅ Resolvido (Bloco 2) |
-| D7 | Teto de ~120 resultados por busca | Limitação do Google Maps | 🟠 Alta |
+| D7 | Teto de ~120 resultados por busca | `src/shared/campaign*.js`, `src/content/campaign-runner.js` | ⚠️ Implementado, validação manual pendente (Bloco 3) |
 | ~~D8~~ | ~~Base acumula tudo sem separar campanhas~~ | `src/shared/campaigns.js` | ✅ Resolvido (Bloco 2) |
 | D9 | Enriquecimento sem cache; deep search sempre roda | `src/background/enrich.js:extractContacts` | 🟡 Média |
 | D10 | `allLeads()` carrega a base inteira em memória | `src/shared/storage.js` | 🟡 Média (futura) |
@@ -489,8 +490,30 @@ contagem de resultados carregados durante a rolagem; mensagem explícita ao term
 
 ### Bloco 3 — Quebrar o teto de cobertura
 
-> **Total: ~8h.** A melhoria de maior impacto de negócio — e a de maior risco técnico, porque
-> depende de um formato de URL do Google se manter.
+> ⚠️ **Implementado em código em 2026-07-29 · execução real ainda não validada em browser.**
+> As quatro peças puras (geração de grade, máquina de estado, decisão de retomada, persistência)
+> têm 39 testes e passaram por revisão de código completa. O que **não** dá para verificar sem
+> abrir o Chrome de verdade: se o Google preserva o texto da busca na URL depois de carregar, se
+> a heurística de CAPTCHA reconhece a página real, e se a navegação entre buscas funciona como
+> esperado. Trate como "pronto para o primeiro teste manual", não como "validado em produção".
+>
+> +43 testes (165 no total): `campaign-grid.test.js` (13), `campaign.test.js` (13),
+> `campaign-runner.test.js` (10) e 3 em `storage.test.js` — as 39 partes puras — mais 4 casos de
+> ponta a ponta em `contentscript.test.js` cobrindo retomada automática, navegação para a próxima
+> busca, pausa por CAPTCHA e conclusão da campanha.
+>
+> **Um bug real pego pelo próprio teste, antes de qualquer coisa**: a primeira versão de
+> `buildMapsSearchUrl` gerava `.../maps/maps/search/...` (duplicava `/maps`) — exatamente o tipo
+> de "formato de URL errado" que este bloco existe para não cometer. `test/campaign-grid.test.js`
+> pegou na primeira rodada.
+>
+> **Decisão de escopo**: só a estratégia "por região" (lista de bairros digitada à mão) ganhou
+> campo na UI do popup. `buildCoordinateGrid` (grid por raio/coordenada) existe, está testado, mas
+> fica acessível só programaticamente por ora — um campo de raio+passo em km não cabia bem numa
+> interface de popup de ~320px sem prejudicar o caso comum.
+
+<details>
+<summary>Detalhamento original (mantido para histórico)</summary>
 
 ---
 
@@ -533,6 +556,8 @@ A execução ponta a ponta exige validação manual no browser.
 **Esforço** 8h · **Risco** Médio · **Depende de** 2.2 (senão as campanhas se misturam)
 
 ---
+
+</details>
 
 ### Bloco 4 — Escala e conformidade
 
@@ -657,6 +682,9 @@ Registradas para não serem re-litigadas a cada sessão.
 | **Bloquear por IP/host literal, não por resolução de DNS** | `isPublicHttpUrl` barra loopback e RFC 1918 escritos diretamente na URL. Não resolve DNS rebinding — o custo de um proxy próprio não se justifica pelo risco residual numa ferramenta de usuário único |
 | **Score de oportunidade computável sem esperar o enriquecimento** | `no_real_website`/`website_is_social_profile` leem só `lead.website` do payload cru — não dependem de `lead.instagram` (que só existe depois do fetch). Uma regra que só pode disparar depois de um evento que ela mesma impede de acontecer é regra morta; o teste de ponta a ponta pegou isso antes de ir para produção |
 | **Cada linha do painel tem seu próprio elemento de texto** | Contagem vitalícia, aviso de esquema, status de sessão e progresso de enriquecimento nunca dividem o mesmo nó — dividir significa um dos quatro apagar o outro no próximo tick |
+| **Campanha pausa em vez de adivinhar quando a URL não bate** | `shouldAutoResumeCampaign` exige igualdade exata entre o texto da busca pendente e o que está na URL da página. Se o Google reescrever a URL de um jeito não reconhecido, a campanha para e espera o usuário — nunca tenta "aproximar" ou seguir adiante sobre uma suposição |
+| **Estado de campanha só em storage.local, nunca em variável do content script** | Cada busca da campanha navega a aba para uma URL nova, o que recarrega a página inteira e mata qualquer estado só-em-memória. A máquina de estado (`src/shared/campaign.js`) é pura e serializável de propósito |
+| **Só a estratégia "por região" ganhou UI** | `buildCoordinateGrid` (grid por raio/coordenada) existe e está testado, mas fica só programático por ora — um campo de raio+passo em km não cabia bem num popup de ~320px sem prejudicar o caso comum (lista de bairros) |
 
 ---
 
@@ -726,10 +754,14 @@ Sem baseline, nenhuma otimização futura é justificável.
 Bloco 0  (1h15)  ✅ CONCLUÍDO 2026-07-29 — segurança 4,5 → 8,5
 Bloco 1  (2h30)  ✅ CONCLUÍDO 2026-07-29 — canário de esquema, payload-map.md, pre-commit
 Bloco 2  (7h)    ✅ CONCLUÍDO 2026-07-29 — score de oportunidade, campanhas, status de sessão
-Bloco 3  (8h)    ──►  próximo: cobertura real 10–30x (modo campanha)
+Bloco 3  (8h)    ⚠️  CÓDIGO PRONTO 2026-07-29 — falta validar em browser real antes de usar em volume
 Bloco 4  (por gatilho, medindo antes)
 Bloco 5  (quando os anteriores estiverem estáveis)
 ```
 
 Cada bloco deixa o projeto num estado coerente e utilizável. Parar depois de qualquer um deles
 é uma decisão legítima.
+
+**Antes de usar o modo campanha em volume real:** carregue a extensão, crie uma campanha pequena
+(2-3 regiões) pelo popup, e confirme que ela retoma sozinha, navega entre as buscas e conclui —
+exatamente o critério de aceite do Bloco 3.1. Só depois disso vale confiar numa campanha grande.

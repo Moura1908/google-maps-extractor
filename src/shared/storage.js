@@ -12,6 +12,7 @@
 const LeadStore = (() => {
   const LEAD_PREFIX = 'lead:';
   const SETTINGS_KEY = 'settings';
+  const CAMPAIGN_KEY = 'campaign';
   const FLUSH_DELAY_MS = 800;
 
   const DEFAULT_SETTINGS = {
@@ -122,6 +123,26 @@ const LeadStore = (() => {
       const settings = { ...(await this.getSettings()), ...patch };
       await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
       return settings;
+    },
+
+    /**
+     * A campanha do modo grade de buscas (ver src/shared/campaign.js). Vive
+     * numa chave própria: cada busca da campanha navega a aba para uma URL
+     * nova, o que recarrega a página inteira — só storage.local sobrevive a
+     * isso, qualquer estado em memória do content script morre junto.
+     */
+    async getCampaign() {
+      const stored = await chrome.storage.local.get(CAMPAIGN_KEY);
+      return stored[CAMPAIGN_KEY] || null;
+    },
+
+    async saveCampaign(campaign) {
+      await chrome.storage.local.set({ [CAMPAIGN_KEY]: campaign });
+      return campaign;
+    },
+
+    async clearCampaign() {
+      await chrome.storage.local.remove(CAMPAIGN_KEY);
     },
   };
 })();

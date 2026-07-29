@@ -78,7 +78,11 @@ function createElement(tagName) {
   return element;
 }
 
-function createFakeEnvironment({ storage = {}, sendMessage = async () => ({}) } = {}) {
+function createFakeEnvironment({
+  storage = {},
+  sendMessage = async () => ({}),
+  location = { host: 'www.google.com.br', pathname: '/maps/search/cafeterias+em+brasilia' },
+} = {}) {
   const body = createElement('body');
   body.isRoot = true;
 
@@ -94,7 +98,9 @@ function createFakeEnvironment({ storage = {}, sendMessage = async () => ({}) } 
 
   const messageListeners = [];
   const windowStub = {
-    location: { host: 'www.google.com.br', pathname: '/maps/search/cafeterias+em+brasilia' },
+    // Objeto próprio (não o `location` recebido): permite ler/escrever
+    // `.href` no teste sem mutar o valor default compartilhado entre testes.
+    location: { ...location },
     addEventListener(event, handler) {
       if (event === 'message') messageListeners.push(handler);
     },

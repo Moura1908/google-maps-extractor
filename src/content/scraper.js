@@ -26,6 +26,10 @@
   // Zerado a cada "Iniciar extração": é o que aparece como "Rolando... N
   // novos" — distinto de leadCount, que é o total vitalício da base.
   let sessionNewLeads = 0;
+  // Não-nulo só quando a extração atual foi disparada automaticamente pelo
+  // modo campanha (ver start()) — é o que decide se, ao parar, a campanha
+  // avança e navega para a próxima busca, ou se foi só uma extração manual.
+  let activeCampaign = null;
 
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -115,8 +119,9 @@
     OverlayUI.setMessage(formatRollingMessage(0));
     console.log('[gms] coleta iniciada');
 
+    let stopReason = null;
     try {
-      const stopReason = await runAutoExtract();
+      stopReason = await runAutoExtract();
       // null = nem chegou a rolar (sem feed): a mensagem já foi definida lá.
       if (stopReason) OverlayUI.setMessage(formatCompletionMessage(stopReason, sessionNewLeads));
     } finally {
@@ -125,6 +130,41 @@
       await LeadStore.flushNow();
       console.log('[gms] coleta finalizada');
     }
+
+    // Fora do finally: navegar para a próxima busca só depois que tudo
+    // acima já assentou (leads gravados, painel atualizado).
+    if (activeCampaign && stopReason) {
+      await advanceCampaign(stopReason);
+    }
+  }
+
+  // --- modo campanha ---------------------------------------------------------
+
+  /**
+   * Avança a campanha ativa e navega para a próxima busca — ou encerra, se
+   * era a última. A navegação recarrega a página inteira; é por isso que o
+   * estado da campanha vive em storage.local (LeadStore), não aqui: esta
+   * função em si não sobrevive à navegação que ela mesma dispara.
+   */
+  async function advanceCampaign(stopReason) {
+    const campaign = activeCampaign;
+    activeCampaign = null;
+
+    const updated = advance(campaign, stopReason);
+    await LeadStore.saveCampaign(updated);
+
+    if (isCampaignComplete(updated)) {
+      OverlayUI.setMessage(formatCampaignCompleteMessage(updated));
+      console.log('[gms] campanha concluída');
+      return;
+    }
+
+    OverlayUI.setMessage(formatCampaignPauseMessage(updated.pauseMs));
+    console.log(`[gms] campanha: pausa de ${updated.pauseMs}ms antes da próxima busca`);
+    await wait(updated.pauseMs);
+
+    const next = currentItem(updated);
+    window.location.href = buildMapsSearchUrl(next.query);
   }
 
   // --- enriquecimento -------------------------------------------------------
@@ -245,5 +285,45 @@
       onSettingChange: updateSettings,
     });
     OverlayUI.setCount(leadCount);
+
+    await tryResumeCampaign();
   })();
+
+  /**
+   * Ao carregar a página, verifica se existe uma campanha esperando por
+   * exatamente esta busca — se sim, inicia a extração sozinha, sem esperar
+   * clique. É assim que a campanha atravessa a navegação entre buscas: cada
+   * página nova roda este mesmo boot, e cada uma decide por si se é "a sua
+   * vez" comparando o texto da busca com o item pendente da campanha.
+   */
+  async function tryResumeCampaign() {
+    const campaign = await LeadStore.getCampaign();
+    if (!campaign || isCampaignComplete(campaign)) return;
+
+    if (looksLikeGoogleCaptchaPage(window.location.pathname)) {
+      // Não avança, não navega de novo: cutucar o Google enquanto ele já
+      // sinalizou tráfego suspeito só pioraria. Fica parado até o usuário
+      // resolver a verificação e reiniciar a campanha pelo popup.
+      console.error('[gms] campanha pausada: página de verificação do Google detectada');
+      OverlayUI.setWarning(formatCaptchaMessage());
+      return;
+    }
+
+    const item = shouldAutoResumeCampaign(campaign, currentSearchQuery());
+    if (!item) {
+      // A campanha existe mas esta página não é a busca esperada — pode ser
+      // o Google tendo reescrito a URL (risco conhecido), ou uma aba aberta
+      // à parte. Não adivinha: fica visível, mas não mexe em nada sozinho.
+      console.warn('[gms] campanha ativa, mas a busca desta página não bate com o item pendente');
+      return;
+    }
+
+    activeCampaign = campaign;
+    OverlayUI.setMessage(formatCampaignProgressMessage(campaign));
+    console.log('[gms] campanha retomando automaticamente:', item.query);
+    // Dá um instante para a página assentar antes de rolar — mesmo espírito
+    // do wait(3000) após clicar no botão de busca em runAutoExtract().
+    await wait(2000);
+    toggleExtract();
+  }
 })();

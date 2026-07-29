@@ -8,6 +8,8 @@ const vm = require('node:vm');
 
 const { createFakeEnvironment } = require('./helpers/fake-dom.js');
 const { buildEntry, buildSearchResponse } = require('./fixtures.js');
+const { createCampaign } = require('../src/shared/campaign.js');
+const { buildMapsSearchUrl } = require('../src/shared/campaign-grid.js');
 
 const ROOT = path.join(__dirname, '..');
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
@@ -428,4 +430,93 @@ test('o mesmo lead chegando duas vezes não duplica na base', async () => {
   const keys = Object.keys(storage).filter((key) => key.startsWith('lead:'));
   assert.strictEqual(keys.length, 1);
   assert.strictEqual(env.body.find('extension_gms_leads_info').innerText, 'Leads: 1');
+});
+
+// --- modo campanha -----------------------------------------------------------
+
+test('campanha: retoma sozinha, conclui a busca atual e navega para a próxima', async () => {
+  const query1 = 'barbearias em taguatinga';
+  const query2 = 'barbearias em sobradinho';
+  const campaign = createCampaign([query1, query2], { pauseMs: 50 });
+
+  const storage = {
+    campaign,
+    // delays mínimos: sem isso, a primeira rolagem sozinha levaria até 3s reais
+    settings: { minScrollDelayMs: 1, maxScrollDelayMs: 2 },
+  };
+  const location = { host: 'www.google.com.br', pathname: `/maps/search/${encodeURIComponent(query1)}` };
+  const { env } = loadContentScripts({ storage, location });
+
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000;
+  env.documentStub.querySelector = (selector) => {
+    if (selector === '[role="feed"]') return feed;
+    if (selector === '.HlvSq') return env.documentStub.createElement('div'); // fim da lista já na 1ª rolagem
+    return null;
+  };
+
+  // 2000ms (espera antes de iniciar) + rolagem quase instantânea + 50ms de
+  // pausa da campanha antes de navegar — 2500ms dá folga suficiente.
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+
+  assert.strictEqual(
+    env.windowStub.location.href,
+    buildMapsSearchUrl(query2),
+    'deveria ter navegado para a segunda busca da campanha'
+  );
+
+  const savedCampaign = storage.campaign;
+  assert.strictEqual(savedCampaign.currentIndex, 1, 'a campanha precisa ter avançado para o próximo item');
+  assert.strictEqual(savedCampaign.items[0].status, 'end_of_list');
+});
+
+test('campanha: busca da página não bate com o item pendente, não inicia sozinho', async () => {
+  const campaign = createCampaign(['barbearias em taguatinga', 'barbearias em sobradinho']);
+  const storage = { campaign };
+  const location = { host: 'www.google.com.br', pathname: '/maps/search/uma+busca+qualquer' };
+  const { env } = loadContentScripts({ storage, location });
+
+  await new Promise((resolve) => setTimeout(resolve, 2200)); // além do wait(2000) que precederia o auto-start
+
+  assert.strictEqual(
+    env.body.find('extension_gms_start_btn').innerText,
+    'Iniciar extração',
+    'sem a busca esperada da campanha, a extração não pode começar sozinha'
+  );
+});
+
+test('campanha: página de verificação do Google pausa a campanha em vez de tentar de novo', async () => {
+  const campaign = createCampaign(['barbearias em taguatinga']);
+  const storage = { campaign };
+  const location = { host: 'www.google.com', pathname: '/sorry/index' };
+  const { env } = loadContentScripts({ storage, location });
+
+  await tick();
+
+  assert.strictEqual(env.body.find('extension_gms_start_btn').innerText, 'Iniciar extração');
+  assert.match(findWarningLabel(env).innerText, /página de verificação/);
+  assert.strictEqual(storage.campaign.currentIndex, 0, 'a campanha não pode ter avançado sozinha');
+});
+
+test('campanha: ao concluir o último item, encerra em vez de navegar', async () => {
+  const query = 'barbearias em taguatinga';
+  const campaign = createCampaign([query], { pauseMs: 50 });
+  const storage = { campaign, settings: { minScrollDelayMs: 1, maxScrollDelayMs: 2 } };
+  const location = { host: 'www.google.com.br', pathname: `/maps/search/${encodeURIComponent(query)}` };
+  const { env } = loadContentScripts({ storage, location });
+
+  const feed = env.documentStub.createElement('div');
+  feed.scrollTop = 0;
+  feed.scrollHeight = 1000;
+  env.documentStub.querySelector = (selector) => {
+    if (selector === '[role="feed"]') return feed;
+    if (selector === '.HlvSq') return env.documentStub.createElement('div');
+    return null;
+  };
+
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+
+  assert.strictEqual(env.windowStub.location.href, undefined, 'não deveria navegar: era o último item');
+  assert.match(findStatusLabel(env).innerText, /Campanha concluída/);
 });

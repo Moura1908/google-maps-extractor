@@ -95,6 +95,41 @@ Todo lead grava a busca de origem (`search_query`). No dashboard, o seletor **Ca
 por uma busca específica — e a exportação respeita esse filtro, então dá para baixar só os leads
 de uma campanha. No popup, **Últimas buscas** mostra as 5 mais recentes com a contagem de cada uma.
 
+## Modo campanha (quebrar o teto de ~120 resultados por busca)
+
+O Google Maps satura a lista de resultados em torno de 100–120 itens. "Clínicas de estética em
+Brasília" nunca devolve as clínicas de Brasília — devolve 120 delas, as que o Google já ranqueia
+melhor (leia-se: as que já têm marketing bom e já são assediadas por todo mundo). A cauda longa —
+o lead que ninguém abordou — só aparece fatiando a busca em várias menores.
+
+No popup, em **Modo campanha**: preencha o termo de busca no campo de cima (ex.: `barbearias`),
+liste uma região por linha em baixo (`Asa Sul`, `Taguatinga`, `Águas Claras`...) e clique em
+**Iniciar campanha**. A extensão abre a primeira busca (`barbearias em Asa Sul`), extrai sozinha
+até o fim, espera a pausa configurada (30s por padrão) e navega para a próxima — sequencialmente,
+até a lista acabar. Como a base já é deduplicada globalmente (`placeID` → `cID` → nome+endereço),
+não importa se a mesma empresa aparecer em duas regiões vizinhas: entra uma vez só.
+
+Também existe geração de grid por coordenada (`buildCoordinateGrid` em
+`src/shared/campaign-grid.js`, testada) para quem prefere cobrir um raio geográfico em vez de
+listar bairros à mão — hoje só acessível programaticamente (sem campo na UI), porque um raio +
+passo em km não cabe bem numa interface de popup de 320px sem afundar a experiência comum.
+
+**Isto navega a aba automaticamente e em sequência — leia antes de usar em volume:**
+
+- **Formato de URL pode mudar.** A campanha só retoma sozinha se o texto da busca na URL bater
+  exatamente com o item pendente. Se o Google reescrever a URL de um jeito que a extensão não
+  reconheça, a campanha **pausa** (não adivinha, não trava em loop) — abra `docs/payload-map.md`
+  se isso acontecer com frequência.
+- **Detecção de CAPTCHA é heurística e best-effort** (`looksLikeGoogleCaptchaPage` em
+  `src/content/campaign-runner.js`): olha só o início do caminho da URL. Se o Google mostrar uma
+  página de verificação sem mudar a URL de um jeito reconhecível, a extensão pode não perceber —
+  a pausa configurável entre buscas é a defesa primária contra volume, a detecção é um extra.
+- **Cancele pelo popup** (**Cancelar campanha**) a qualquer momento — mesmo com uma busca em
+  andamento, o cancelamento vale assim que a busca atual terminar.
+- **Execução ponta a ponta ainda não foi validada num browser real** por mim — as partes puras
+  (geração da grade, máquina de estado, decisão de retomada) têm 39 testes automatizados; a
+  navegação de verdade entre páginas do Maps só se confirma usando a extensão de fato.
+
 ### Telefone
 
 `src/shared/phone.js` normaliza para E.164 e classifica sem depender de biblioteca externa:
@@ -115,7 +150,7 @@ Para zerar: **Limpar base**, no painel ou no dashboard (exige dois cliques).
 npm test    # node --test test/*.test.js
 ```
 
-122 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, o score de oportunidade, o agrupamento por campanha, as mensagens de status da sessão, a sanitização de exportação, a guarda contra SSRF, o canário de esquema, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor) só se verificam carregando a extensão.
+165 testes cobrindo o parser (contra fixtures do payload), a deduplicação, a normalização de telefone, o score de oportunidade, o agrupamento por campanha, a geração de grade e a máquina de estado do modo campanha, as mensagens de status da sessão, a sanitização de exportação, a guarda contra SSRF, o canário de esquema, a base local e a fila de concorrência. As partes que dependem do browser (DOM do Maps, injeção do interceptor, navegação real entre páginas) só se verificam carregando a extensão.
 
 `npm install` instala um hook de pre-commit que roda `npm test` antes de cada commit (fonte em `scripts/git-hooks/pre-commit`; `.git/hooks/` não é versionado, por isso a instalação é automática em vez de manual). Para um commit só de documentação, pule com `git commit --no-verify`.
 
@@ -127,7 +162,8 @@ Exportação sanitizada contra injeção de fórmula (`src/shared/csvsafe.js`) e
 
 `docs/PLANO-DE-EVOLUCAO.md` tem o diagnóstico completo, o roadmap em blocos (com critério de
 aceite e esforço por item), as decisões já tomadas e o que foi deliberadamente descartado.
-**Bloco 0 (segurança) concluído** — próximo é o Bloco 1 (proteger o mapa de índices do parser).
+**Blocos 0-3 concluídos no código** — falta validar o modo campanha (Bloco 3.1) num browser real
+antes de rodar em volume. Próximo: Bloco 4 (escala e conformidade, por gatilho) ou Bloco 5.
 
 ## Limitações conhecidas
 

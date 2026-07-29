@@ -426,12 +426,15 @@
         "src/shared/phone.js",
         "src/shared/storage.js",
         "src/shared/opportunity.js",
+        "src/shared/campaign-grid.js",
+        "src/shared/campaign.js",
         "src/content/parser.js",
         "src/content/ingest.js",
         "src/content/schema-health.js",
         "src/content/session-status.js",
         "src/content/queue.js",
         "src/content/overlay.js",
+        "src/content/campaign-runner.js",
         "src/content/scraper.js"
       ],
       "css": [
