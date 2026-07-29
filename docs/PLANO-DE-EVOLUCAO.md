@@ -1,6 +1,6 @@
 # Plano de Evolução
 
-> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0, 1 e 2 concluídos · Bloco 3 implementado, validação manual pendente**
+> Documento vivo. Última revisão: **2026-07-29** · Estado do código: **v2.0.0** (commit `bce0d84`) · **Blocos 0, 1, 2, 5.1 e 5.3 concluídos · Bloco 3 implementado, validação manual pendente · Bloco 4 aguardando gatilho · Bloco 5.2 fora de escopo (decisão de produto)**
 >
 > Este plano existe para que qualquer pessoa — inclusive você daqui a oito meses — consiga
 > retomar o projeto sabendo **o que falta, por que importa e em que ordem fazer**, sem
@@ -132,7 +132,9 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 | **Campanhas separáveis** | Filtro e export por `search_query` no dashboard; últimas buscas com contagem no popup |
 | **Status de sessão e conclusão** | "Rolando... N novos", e ao parar: motivo real (fim da lista · trava · interrompido) |
 | **Modo campanha (grade de buscas)** | Gera várias buscas (por região), navega entre elas sozinha, dedupe global já cobre a agregação. **Código completo, execução real em browser ainda não validada** |
-| 165 testes (`npm test`) | +83 desde o Bloco 1: oportunidade (18), campanhas (7), status de sessão (6), grade/campanha/runner (39), + casos de ponta a ponta |
+| **Novos no mapa** | Filtro "Novos nos últimos N dias" no dashboard — sem campo novo, `scraped_at` já é a data do primeiro avistamento |
+| **`screenshot/` removido** | 2,5 MB de UI antiga (login/quota que não existem mais); nada no repositório referenciava os arquivos |
+| 174 testes (`npm test`) | +9 desde o Bloco 3: `recency.test.js` |
 
 ### Notas do estado atual
 
@@ -140,18 +142,18 @@ Regras que já orientaram escolhas feitas e devem orientar as próximas.
 |---|---|---|
 | Arquitetura | 8,0 | Limpa; presa a índices posicionais e escopo global — inerente ao domínio |
 | Código | 8,5 | Legível, comentado no *porquê*, sem código morto |
-| Organização | 8,5 | `payload-map.md` e hook de teste resolvidos (Bloco 1). Falta só `screenshot/` desatualizado (D14) |
-| UX | 8,0 | Mostra progresso, motivo de parada e separa campanhas (Bloco 2) |
+| **Organização** | **9,0** | `payload-map.md`, hook de teste (Bloco 1) e `screenshot/` desatualizado (Bloco 5.3) resolvidos |
+| UX | 8,0 | Mostra progresso, motivo de parada, separa campanhas e acha "quem é novo" (Blocos 2 e 5) |
 | UI | 6,5 | Funcional e consistente; não memorável — aceitável para ferramenta de trabalho |
 | Segurança | 8,5 | **Bloco 0 concluído**: CSV injection sanitizado, SSRF bloqueado, handler órfão removido. Falta o que depende de gatilho futuro (§4.3 lista de supressão) |
-| Performance | 7,0 | Concorrência resolvida; falta cache e parada antecipada |
-| Escalabilidade | 6,0 | Sólida até ~20k leads; degrada por carregar tudo em memória |
+| Performance | 7,0 | Concorrência resolvida; falta cache e parada antecipada (Bloco 4, por gatilho) |
+| Escalabilidade | 6,0 | Sólida até ~20k leads; degrada por carregar tudo em memória (Bloco 4, por gatilho) |
 | Documentação | 8,5 | README honesto + `payload-map.md` versionado transformam arqueologia em consulta |
-| **Produto** | **8,0** (⚠️ **condicional**) | A lista virou fila priorizada (Bloco 2) e o teto de ~120/busca tem solução em código (Bloco 3) — mas o ganho de cobertura só é real depois de validado num browser de verdade |
+| **Produto** | **8,0** (⚠️ **condicional**) | A lista virou fila priorizada, separa campanhas e acha quem é novo (Blocos 2 e 5). O teto de ~120/busca tem solução em código (Bloco 3), mas o ganho de cobertura só é real depois de validado num browser de verdade |
 | Inovação | 7,5 | A interceptação de API interna é boa; o score de oportunidade é o segundo diferencial real |
-| **Qualidade geral** | **8,3** | Segurança e ativo do parser protegidos, produto entrega decisão e (potencialmente) cobertura 10-30x maior. Falta validar o Bloco 3 em uso real antes de contar esse ganho como entregue |
+| **Qualidade geral** | **8,4** | Segurança e ativo do parser protegidos, produto entrega decisão, campanhas e recência. Falta validar o Bloco 3 em uso real; Bloco 4 aguarda gatilho de propósito (não é lacuna, é disciplina) |
 
-*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração: 7,0 · pós-Bloco 0: 7,5 · pós-Bloco 1: 7,8 · pós-Bloco 2: 8,2.)*
+*(Antes da refatoração de 2026-07-28: 3,5 · pós-refatoração: 7,0 · pós-Bloco 0: 7,5 · pós-Bloco 1: 7,8 · pós-Bloco 2: 8,2 · pós-Bloco 3: 8,3.)*
 
 ---
 
@@ -174,7 +176,7 @@ Achados confirmados no código, com localização. Cada um vira um item do roadm
 | D11 | Sem lista de supressão (LGPD) | — (ausência) | 🟡 Média |
 | ~~D12~~ | ~~Sem hook rodando os testes~~ | `scripts/git-hooks/pre-commit` | ✅ Resolvido (Bloco 1) |
 | ~~D13~~ | ~~Coleta não informa progresso nem conclusão~~ | `src/content/session-status.js` | ✅ Resolvido (Bloco 2) |
-| D14 | `screenshot/` (2,5 MB) mostra a UI antiga | `screenshot/` | 🟢 Baixa |
+| ~~D14~~ | ~~`screenshot/` (2,5 MB) mostra a UI antiga~~ | — (removido) | ✅ Resolvido (Bloco 5.3) |
 
 ---
 
@@ -625,6 +627,20 @@ o opt-out do `meu-disparo-n8n`.
 
 ### Bloco 5 — Visionário
 
+> ✅ **5.1 e 5.3 concluídos em 2026-07-29.** 5.2 permanece deliberadamente fora de escopo (ver
+> nota abaixo). +9 testes (174 no total): `test/recency.test.js`.
+>
+> **Simplificação em relação ao rascunho**: 5.1 não criou o campo `first_seen_at` que o texto
+> original propunha. Como a base já nunca reprocessa um lead que existia (dedupe global em
+> `src/content/scraper.js`), `scraped_at` **já é** a data da primeira vez que o lead apareceu —
+> ele nunca é tocado de novo num reencontro. Adicionar um segundo campo com o mesmo significado
+> seria duplicação sem ganho. `src/shared/recency.js` (`isWithinDays`) + o filtro "Novos nos
+> últimos N dias" no dashboard entregam a mesma pergunta ("quem é novo desde a última vez?") sem
+> o campo extra.
+
+<details>
+<summary>Detalhamento original (mantido para histórico)</summary>
+
 ---
 
 #### 5.1 — Delta entre coletas: "novos no mapa"
@@ -643,6 +659,13 @@ execuções e marcar `first_seen_at`.
 
 #### 5.2 — Enriquecimento por IA em lote (opt-in)
 
+> ❌ **Não implementado nesta rodada — deliberadamente.** Diferente dos outros itens, este exige
+> uma decisão de produto que não é minha para tomar sozinho: qual provedor de IA usar, de quem é
+> a chave de API, e o custo recorrente que isso implica. Adicionar uma integração paga com um
+> vendor específico, mais a superfície de UI para guardar a chave, é uma decisão consequente o
+> bastante para caber a Heitor decidir — não algo a assumir por conta própria só para "terminar
+> o roadmap". Continua no plano, pronto para ser especificado quando houver decisão de provedor.
+
 Estritamente **fora do caminho crítico**, rodando depois da coleta, sobre leads já salvos:
 
 - **Nicho real** a partir de nome + categoria + conteúdo do site (a `category` do Google é grosseira)
@@ -658,10 +681,18 @@ materializado *antes* da chamada, e nenhuma decisão de negócio delegada ao mod
 
 #### 5.3 — Higiene do repositório (D14)
 
-`screenshot/` tem 2,5 MB de imagens da interface antiga — hoje é o maior diretório do projeto
+✅ `screenshot/` tem 2,5 MB de imagens da interface antiga — hoje é o maior diretório do projeto
 e documenta uma UI que não existe mais. Substituir por 2–3 capturas atuais ou remover.
 
+**Resolvido por remoção**, não substituição: gerar screenshot novo exige abrir a extensão num
+browser de verdade, o que está fora do alcance desta sessão. Nada no repositório referenciava os
+arquivos antigos — a remoção não deixou link quebrado.
+
 **Esforço** 30 min
+
+---
+
+</details>
 
 ---
 
@@ -712,7 +743,8 @@ Tão importante quanto o roadmap: o que **não** fazer, e por quê.
 | Google reordena o payload | **Alta** (questão de tempo) | Alto | Canário (1.1) avisa na hora; `payload-map.md` (1.2) encurta o remapeamento para minutos |
 | Google migra `/search` para outro endpoint | Média | Crítico | O interceptor loga toda URL capturada; achar o novo endpoint é questão de inspecionar o console |
 | Classes ofuscadas mudam (`.w6VYqd`, `.HlvSq`) | Alta | Baixo/Médio | Painel já tem fallback; a detecção de fim de lista degrada para a trava de rolagem |
-| CAPTCHA por volume | Média (sobe muito com 3.1) | Médio | Pausa configurável, detecção de CAPTCHA com parada imediata |
+| CAPTCHA por volume | Média (sobe com o modo campanha) | Médio | Pausa configurável (30s padrão) + detecção heurística implementadas (Bloco 3.1) — mas nenhuma das duas foi testada contra um CAPTCHA real do Google ainda |
+| Retomada da campanha falha por URL reescrita pelo Google | Média | Baixo (degrada, não quebra) | `shouldAutoResumeCampaign` exige igualdade exata; se não bater, a campanha pausa em vez de adivinhar (Bloco 3.1) |
 | Base cresce além do suportado | Média | Médio | Gatilhos definidos em 4.2 |
 | Extensão quebra numa atualização do Chrome (MV3) | Baixa | Alto | Sem APIs exóticas; a superfície usada (`storage`, `scripting`, content scripts) é estável |
 
@@ -755,8 +787,8 @@ Bloco 0  (1h15)  ✅ CONCLUÍDO 2026-07-29 — segurança 4,5 → 8,5
 Bloco 1  (2h30)  ✅ CONCLUÍDO 2026-07-29 — canário de esquema, payload-map.md, pre-commit
 Bloco 2  (7h)    ✅ CONCLUÍDO 2026-07-29 — score de oportunidade, campanhas, status de sessão
 Bloco 3  (8h)    ⚠️  CÓDIGO PRONTO 2026-07-29 — falta validar em browser real antes de usar em volume
-Bloco 4  (por gatilho, medindo antes)
-Bloco 5  (quando os anteriores estiverem estáveis)
+Bloco 4  (por gatilho — NÃO implementado de propósito, medir antes é a disciplina, não preguiça)
+Bloco 5  5.1 ✅ + 5.3 ✅ concluídos 2026-07-29 · 5.2 fora de escopo (decisão de produto sobre IA)
 ```
 
 Cada bloco deixa o projeto num estado coerente e utilizável. Parar depois de qualquer um deles

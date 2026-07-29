@@ -168,6 +168,7 @@ const filterControls = {
   noWebsite: () => document.getElementById('filter-no-website').checked,
   minRating: () => parseFloat(document.getElementById('filter-rating').value),
   minReviews: () => parseFloat(document.getElementById('filter-reviews').value),
+  recentDays: () => parseFloat(document.getElementById('filter-recent-days').value),
 };
 
 function matchesQuickFilters(row) {
@@ -184,6 +185,12 @@ function matchesQuickFilters(row) {
 
   const minReviews = filterControls.minReviews();
   if (!Number.isNaN(minReviews) && !(parseFloat(row.reviewCount) >= minReviews)) return false;
+
+  // "Novos no mapa": a base nunca reprocessa um lead que já existia (dedupe
+  // global), então scraped_at é sempre a data da PRIMEIRA vez que ele
+  // apareceu — mesmo numa campanha rodada de novo 30 dias depois.
+  const recentDays = filterControls.recentDays();
+  if (!Number.isNaN(recentDays) && !isWithinDays(row.scraped_at, recentDays)) return false;
 
   return true;
 }
@@ -229,6 +236,7 @@ function resetFilters() {
   });
   document.getElementById('filter-rating').value = '';
   document.getElementById('filter-reviews').value = '';
+  document.getElementById('filter-recent-days').value = '';
   table.clearHeaderFilter();
   applyFilters();
 }
@@ -322,7 +330,7 @@ document.getElementById('filter-query').addEventListener('change', applyFilters)
 ['filter-email', 'filter-mobile', 'filter-phone', 'filter-no-website'].forEach((id) => {
   document.getElementById(id).addEventListener('change', applyFilters);
 });
-['filter-rating', 'filter-reviews'].forEach((id) => {
+['filter-rating', 'filter-reviews', 'filter-recent-days'].forEach((id) => {
   document.getElementById(id).addEventListener('input', applyFilters);
 });
 document.getElementById('filter-reset').addEventListener('click', resetFilters);

@@ -95,6 +95,14 @@ Todo lead grava a busca de origem (`search_query`). No dashboard, o seletor **Ca
 por uma busca específica — e a exportação respeita esse filtro, então dá para baixar só os leads
 de uma campanha. No popup, **Últimas buscas** mostra as 5 mais recentes com a contagem de cada uma.
 
+### Novos no mapa
+
+O filtro **Novos nos últimos N dias** responde "quem apareceu desde a última vez que rodei essa
+busca?" — sem precisar de nenhum campo novo. Como a base nunca reprocessa um lead que já existia
+(dedupe global), `scraped_at` é sempre a data da **primeira** vez que aquele lead foi visto, mesmo
+que a mesma campanha rode de novo 30 dias depois. Um negócio que acabou de entrar no Google Maps
+ainda não foi abordado por ninguém — é o lead mais quente que existe nesse mercado.
+
 ## Modo campanha (quebrar o teto de ~120 resultados por busca)
 
 O Google Maps satura a lista de resultados em torno de 100–120 itens. "Clínicas de estética em
